@@ -1,0 +1,17 @@
+# netbeans
+nbproject/
+nbactions.xml
+
+# intellij
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# maven
+target/
+dependency-reduced-pom.xml
+
+# test servers
+server/
+*.jar
