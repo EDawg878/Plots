@@ -43,7 +43,7 @@ object BukkitImpl {
     def reload: Configuration =
       new BukkitConfiguration(plugin, name, load(path))
 
-    override def save: Unit = config.save(path.toFile)
+    override def save(): Unit = config.save(path.toFile)
 
     override def get(path: String): AnyRef = config.get(path)
 

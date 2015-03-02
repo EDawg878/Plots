@@ -16,7 +16,8 @@ import net.md_5.bungee.config.{YamlConfiguration, ConfigurationProvider}
 /**
  * @author EDawg878 <EDawg878@gmail.com>
  */
-class BungeeImpl {
+object BungeeImpl {
+
 
   val ConfigProvider = ConfigurationProvider.getProvider(classOf[YamlConfiguration])
 
@@ -31,7 +32,7 @@ class BungeeImpl {
     override def reload: Configuration =
       new BungeeConfiguration(plugin, name, load(path))
 
-    override def save: Unit = ConfigProvider.save(config, path.toFile)
+    override def save(): Unit = ConfigProvider.save(config, path.toFile)
 
     override def get(path: String): AnyRef = config.get(path)
 

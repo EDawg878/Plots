@@ -15,13 +15,13 @@ class BukkitMain extends JavaPlugin with Listener {
   override def onEnable() {
     getServer.getPluginManager.registerEvents(this, this)
     val config = new BukkitConfiguration(this, "config.yml")
-    config.saveDefault
+    config.saveDefault()
     test(config)
   }
 
   def test(config: Configuration): Unit = {
     config.set("test.node", true)
-    config.save
+    config.save()
   }
 
   @BukkitEvent

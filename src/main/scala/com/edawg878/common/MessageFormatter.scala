@@ -29,7 +29,7 @@ object MessageFormatter {
     b.toString()
   }
 
-  private def colorizeErr(str: String) = ERROR + str
+  private def colorizeErr(str: String): String = ERROR + str
 
   implicit class Formatter(val sc: StringContext) extends AnyVal {
 
@@ -38,27 +38,24 @@ object MessageFormatter {
       cache.getOrElseUpdate(key, new MessageFormat(key))
     }
 
-    def info(args: Any*): String = {
+    def info(args: Any*): String =
       sc.standardInterpolator(colorizeInfo, args)
-    }
 
-    def err(args: Any*): String = {
+    def err(args: Any*): String =
       sc.standardInterpolator(colorizeErr, args)
-    }
 
   }
 
   implicit class RichMessageFormat(val self: MessageFormat) extends AnyVal {
 
-    private def fmt(args: Seq[Any]) = self.format(args.map(_.asInstanceOf[java.lang.Object]).toArray)
+    private def fmt(args: Seq[Any]): String =
+      self.format(args.map(_.asInstanceOf[Object]).toArray)
 
-    def info(args: Any*): String = {
+    def info(args: Any*): String =
       colorizeInfo(fmt(args))
-    }
 
-    def err(args: Any*): String = {
+    def err(args: Any*): String =
       colorizeErr(fmt(args))
-    }
 
   }
 

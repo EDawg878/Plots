@@ -11,9 +11,9 @@ abstract class Configuration(plugin: Plugin, name: String) extends Configuration
 
   def reload: Configuration
 
-  def save: Unit
+  def save(): Unit
 
-  def saveDefault: Unit = {
+  def saveDefault(): Unit = {
     if (Files.notExists(path)) {
       Files.createDirectories(path.getParent)
       plugin.saveResource(plugin.getResource(name), name)

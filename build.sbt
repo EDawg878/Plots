@@ -16,5 +16,6 @@ resolvers += "sk89q-repo" at "http://maven.sk89q.com/repo/"
 
 libraryDependencies ++= Seq(
   "org.spigotmc" % "spigot-api" % "1.8-R0.1-SNAPSHOT",
-  "net.md-5" % "bungeecord-api" % "1.8-SNAPSHOT"
+  "net.md-5" % "bungeecord-api" % "1.8-SNAPSHOT",
+  "org.scalatest" % "scalatest_2.11" % "2.2.1" % "test"
 )
