@@ -6,12 +6,12 @@ import java.util.UUID
 import java.util.logging.Logger
 
 import org.bukkit.configuration.file._
+import org.bukkit.entity.Player
 
 import scala.collection.JavaConverters._
 
 import org.bukkit.command.CommandSender
-import com.edawg878.common.{Console, User, Plugin, Configuration, ConfigurationSection}
-import org.bukkit.entity.Player
+import com.edawg878.common.{Console, Plugin, Configuration, ConfigurationSection}
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
@@ -75,7 +75,7 @@ object BukkitImpl {
 
   }
 
-  implicit class BukkitUser(val player: Player) extends User {
+  implicit class BukkitPlayer(val player: Player) extends com.edawg878.common.Player {
 
     override def getName: String = player.getName
 

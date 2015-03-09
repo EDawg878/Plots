@@ -18,7 +18,6 @@ import net.md_5.bungee.config.{YamlConfiguration, ConfigurationProvider}
  */
 object BungeeImpl {
 
-
   val ConfigProvider = ConfigurationProvider.getProvider(classOf[YamlConfiguration])
 
   private def load(path: Path): net.md_5.bungee.config.Configuration =
@@ -65,7 +64,7 @@ object BungeeImpl {
 
   }
 
-  implicit class BungeeUser(val player: ProxiedPlayer) extends User {
+  implicit class BungeePlayer(val player: ProxiedPlayer) extends Player {
 
     override def getName: String = player.getName
 

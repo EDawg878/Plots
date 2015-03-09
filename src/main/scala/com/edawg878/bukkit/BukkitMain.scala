@@ -40,6 +40,8 @@ class BukkitMain extends JavaPlugin with Listener {
     player.sendMessage(fmt"You have [{0}] {0,choice,0#items|1#item|1<items} of type [{1}] ".info(num, name))
     player.sendMessage(info"This is an info message number = [$num]")
     player.sendMessage(err"This is an error message name = $name")
+    import com.softwaremill.macwire.MacwireMacros._
+    val wired = wiredInModule(new BukkitMain)
   }
 
 }

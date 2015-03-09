@@ -14,9 +14,7 @@ trait Plugin {
   def resolveFile(name: String) = getDataFolder.resolve(name)
 
   @throws(classOf[IOException])
-  def saveResource(in: InputStream, out: String): Unit = {
-    Files.copy(in, resolveFile(out))
-  }
+  def saveResource(in: InputStream, out: String): Unit = Files.copy(in, resolveFile(out))
 
   def getResource(name: String): InputStream
 
