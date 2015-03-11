@@ -6,6 +6,8 @@ version := "1.0"
 
 scalaVersion := "2.11.5"
 
+retrieveManaged := true
+
 resolvers += "spigot-repo" at "https://hub.spigotmc.org/nexus/content/groups/public/"
 
 resolvers += "sonatype-oss-public" at "https://oss.sonatype.org/content/groups/public/"

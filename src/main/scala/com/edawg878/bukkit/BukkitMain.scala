@@ -1,47 +1,34 @@
 package com.edawg878.bukkit
 
-import com.edawg878.common.Configuration
-import com.edawg878.common.MessageFormatter._
 import com.edawg878.bukkit.BukkitImpl._
-import org.bukkit.event.player.PlayerInteractEvent
-import org.bukkit.event.{EventHandler => BukkitEvent, Listener}
+import com.edawg878.common.Database._
+import com.edawg878.common.Logging
+import com.edawg878.common.Logging.PluginLogging
+import org.bukkit.event.player.PlayerJoinEvent
+import org.bukkit.event.{EventHandler, Listener}
 import org.bukkit.plugin.java.JavaPlugin
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.Success
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
  */
-class BukkitMain extends JavaPlugin with Listener {
+class BukkitMain extends JavaPlugin with Listener with PluginLogging {
+
+  Logging.log = getLogger
+  val db = new MongoPlayerRepository
 
   override def onEnable() {
     getServer.getPluginManager.registerEvents(this, this)
-    val config = new BukkitConfiguration(this, "config.yml")
-    config.saveDefault()
-    test(config)
   }
 
-  def test(config: Configuration): Unit = {
-    config.set("test.node", true)
-    config.save()
-  }
-
-  @BukkitEvent
-  def onInteract(event: PlayerInteractEvent) {
+  @EventHandler
+  def onInteract(event: PlayerJoinEvent) {
     val player = event.getPlayer
-    val hand = player.getItemInHand
-    val num = player.getInventory
-      .getContents
-      .filter(_ != null)
-      .count(_.getType == hand.getType)
-    val name = event.getItem.getType.name
-      .toLowerCase
-      .split("_")
-      .map(_.capitalize)
-      .mkString(" ")
-    player.sendMessage(fmt"You have [{0}] {0,choice,0#items|1#item|1<items} of type [{1}] ".info(num, name))
-    player.sendMessage(info"This is an info message number = [$num]")
-    player.sendMessage(err"This is an error message name = $name")
-    import com.softwaremill.macwire.MacwireMacros._
-    val wired = wiredInModule(new BukkitMain)
+    db.find(player) onComplete {
+      case Success(v) => logger.info("success!")
+      case e => logger.info(s"failure! $e")
+    }
   }
 
 }
