@@ -9,11 +9,21 @@ object Conversions {
 
   implicit class RichPlayerData(val self: PlayerData) extends AnyVal {
 
-    def displayTier: String = info"[${self.name}] has tier [${self.counters.tier}]"
+    private def name: String = self.name
+
+    def displayTier: String = info"[$name] has tier [${self.counters.tier}]"
+
+    def displayCredits: String = {
+      val credits = self.counters.voteCredits
+      if (credits == 0) info"[$name] has no credits"
+      else if (credits == 1) info"[$name] has [1] credit"
+      else info"[$name] has [$credits] credits"
+    }
 
     def displayPerks: String = {
-      if (self.perks.isEmpty) info"[${self.name}] has no perks"
-      else info"[${self.name}] has the following perks: ${self.perks.mkStringPretty}"
+      val perks = self.perks
+      if (perks.isEmpty) info"[$name] has no perks"
+      else info"[$name] has the following perks: ${perks.mkStringPretty}"
     }
 
   }

@@ -5,7 +5,7 @@ import scala.annotation.tailrec
 private def toBytes(id: UUID): Array[Byte] = {
   val shifts = Array.range(0, 64, 8).reverse
   def split(word: Long) =
-    shifts map(word >>> _ ) map(_.asInstanceOf[Byte])
+    shifts map (word >>> _) map (_.asInstanceOf[Byte])
   split(id.getMostSignificantBits) ++ split(id.getLeastSignificantBits)
 }
 private def fromBytes(data: Array[Byte]): UUID = {

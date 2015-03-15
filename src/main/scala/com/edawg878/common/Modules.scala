@@ -1,6 +1,5 @@
 package com.edawg878.common
 
-import com.edawg878.bukkit.commands.{PerkCommand, TierCommand, TestCommand}
 import com.softwaremill.macwire.Macwire
 
 /**
@@ -12,10 +11,9 @@ object Modules {
 
     lazy val logger = plugin.getLogger
     lazy val db: MongoPlayerRepository = wire[MongoPlayerRepository]
-    lazy val testCommand = wire[TestCommand]
     lazy val tierCommand = wire[TierCommand]
     lazy val perkCommand = wire[PerkCommand]
-
+    lazy val creditCommand = wire[CreditCommand]
 
     def plugin: Plugin
 

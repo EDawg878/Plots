@@ -9,7 +9,7 @@ class MessageFormatSpec extends UnitSpec {
 
   "fmt" should "return a MessageFormat" in {
     val format = fmt"Hello"
-    format.getClass should be (classOf[MessageFormat])
+    format.getClass should be(classOf[MessageFormat])
   }
 
   "fmt" should "cache MessageFormat" in {
@@ -25,13 +25,13 @@ class MessageFormatSpec extends UnitSpec {
   "fmt.info" should "colorize output" in {
     val result = fmt"Test [String]".info()
     val expected = PRIMARY + "Test " + SECONDARY + "String" + PRIMARY
-    result should equal (expected)
+    result should equal(expected)
   }
 
   "fmt.err" should "colorize output" in {
     val result = fmt"Test String".err()
     val expected = ERROR + "Test String"
-    result should equal (expected)
+    result should equal(expected)
   }
 
   "fmt.info" should "format args" in {

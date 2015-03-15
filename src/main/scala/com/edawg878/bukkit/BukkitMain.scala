@@ -13,7 +13,7 @@ import scala.util.Success
 /**
  * @author EDawg878 <EDawg878@gmail.com>
  */
-class BukkitMain extends JavaPlugin with Listener  {
+class BukkitMain extends JavaPlugin with Listener {
 
   val modules = new Module {
     override def plugin: Plugin = BukkitMain.this
@@ -25,9 +25,9 @@ class BukkitMain extends JavaPlugin with Listener  {
 
   override def onEnable() {
     getServer.getPluginManager.registerEvents(this, this)
-    getCommand("test").setExecutor(modules.testCommand)
     getCommand("tier").setExecutor(modules.tierCommand)
     getCommand("perk").setExecutor(modules.perkCommand)
+    getCommand("credit").setExecutor(modules.creditCommand)
   }
 
   @EventHandler

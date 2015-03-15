@@ -3,14 +3,12 @@ package com.edawg878.common
 import java.util.UUID
 import java.util.logging.{Level, Logger}
 
+import com.edawg878.common.Conversions._
 import reactivemongo.api.MongoDriver
 import reactivemongo.api.collections.default.BSONCollection
 import reactivemongo.api.indexes.{Index, IndexType}
 import reactivemongo.bson.Subtype.UuidSubtype
 import reactivemongo.bson._
-
-
-import com.edawg878.common.Conversions._
 
 import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -123,6 +121,7 @@ class MongoPlayerRepository(logger: Logger) extends PlayerRepository with BSONHa
   val col = db.collection[BSONCollection]("players")
 
   def queryById(id: UUID): BSONDocument = BSONDocument("_id" -> id)
+
   def queryByName(name: String): BSONDocument = BSONDocument("lowerName" -> name.toLowerCase)
 
   def ensureIndexes(): Unit = {
@@ -137,7 +136,7 @@ class MongoPlayerRepository(logger: Logger) extends PlayerRepository with BSONHa
       }
     }
     val lowerNameIndex = Index(key = List(("lowerName", IndexType.Ascending)))
-    ensureIndex("Lowercase Username Index", lowerNameIndex)
+    ensureIndex("Lowercase Username", lowerNameIndex)
   }
 
   override def find(id: UUID): Future[Option[PlayerData]] =

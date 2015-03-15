@@ -23,7 +23,7 @@ object MessageFormatter {
     str foreach {
       case '[' => b append SECONDARY
       case ']' => b append PRIMARY
-      case c   => b append c
+      case c => b append c
     }
 
     b.toString()
