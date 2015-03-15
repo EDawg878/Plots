@@ -9,6 +9,9 @@ import reactivemongo.api.indexes.{Index, IndexType}
 import reactivemongo.bson.Subtype.UuidSubtype
 import reactivemongo.bson._
 
+
+import com.edawg878.common.Conversions._
+
 import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -81,18 +84,14 @@ trait BSONHandlers {
 
   implicit object Writer extends BSONDocumentWriter[PlayerData] {
     def write(self: PlayerData): BSONDocument = {
-      def toOption[A](set: Set[A]): Option[Set[A]] = {
-        if (set.isEmpty) None
-        else Some(set)
-      }
       val counters = self.counters
       BSONDocument(
         "_id" -> self.id,
         "name" -> self.name,
         "lowerName" -> self.name.toLowerCase,
-        "usernames" -> toOption(self.usernames),
+        "usernames" -> self.usernames.toOption,
         "displayName" -> self.displayName,
-        "perks" -> toOption(self.perks),
+        "perks" -> self.perks.toOption,
         "tier" -> counters.tier,
         "plotLimit" -> counters.plotLimit,
         "voteCredits" -> counters.voteCredits)
