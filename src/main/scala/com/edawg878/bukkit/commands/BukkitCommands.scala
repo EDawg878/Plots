@@ -56,7 +56,7 @@ class TierCommand(val db: PlayerRepository) extends CommandExecutor with Readers
       case "plus"  => Operation.Add
       case "minus" => Operation.Subtract
       case "set"   => Operation.Set
-      case _       => Operation.Info
+      case "info"  => Operation.Info
     }
 
   case class Config(ops: Operation = null, data: Future[PlayerData] = null, tier: Int = 1)
@@ -77,7 +77,7 @@ class TierCommand(val db: PlayerRepository) extends CommandExecutor with Readers
     } text "player to modify"
     arg[Int]("<amount>") optional() action { (x, c) =>
       c.copy(tier = x)
-    } text "number of tiers"
+    } text "number of tiers to add/subtract/set"
   }
 
   override def onCommand(sender: CommandSender, command: Command, label: String, args: Array[String]): Boolean = {
@@ -138,7 +138,7 @@ class PerkCommand(val db: PlayerRepository) extends CommandExecutor with Readers
     } text "player to modify"
     arg[String]("<perk>") optional() action { (x, c) =>
       c.copy(perk = x)
-    } text "perk to "
+    } text "perk to add/subtract"
     checkConfig(c => c.ops match {
         case Add | Subtract =>
           if (c.perk.trim.isEmpty) failure("You must specify a perk")
