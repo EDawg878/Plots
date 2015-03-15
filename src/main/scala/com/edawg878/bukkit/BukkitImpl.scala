@@ -5,13 +5,11 @@ import java.nio.file.Path
 import java.util.UUID
 import java.util.logging.Logger
 
+import com.edawg878.common.{Configuration, ConfigurationSection, Console, Plugin}
 import org.bukkit.configuration.file._
 import org.bukkit.entity.Player
 
 import scala.collection.JavaConverters._
-
-import org.bukkit.command.CommandSender
-import com.edawg878.common.{Console, Plugin, Configuration, ConfigurationSection}
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
@@ -67,7 +65,7 @@ object BukkitImpl {
     override def getResource(name: String): InputStream = plugin.getResource(name)
   }
 
-  implicit class BukkitConsole(val console: CommandSender) extends Console {
+  implicit class BukkitConsole(val console: org.bukkit.command.CommandSender) extends Console {
 
     override def sendMessage(message: String): Unit = console.sendMessage(message)
 

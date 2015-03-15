@@ -1,3 +1,7 @@
 name: ScalaTest
 main: com.edawg878.bukkit.BukkitMain
 version: 1
+commands:
+  test: {}
+  tier: {}
+  perk: {}

@@ -18,12 +18,18 @@ resolvers += "bukkit-repo" at "http://repo.bukkit.org/content/groups/public/"
 
 resolvers += "sk89q-repo" at "http://maven.sk89q.com/repo/"
 
+resolvers += Resolver.sonatypeRepo("public")
+
+unmanagedJars in Compile += file("lib_unmanaged/scopt_2.11-3.3.0.jar")
+
 libraryDependencies ++= Seq(
   "org.spigotmc" % "spigot-api" % "1.8-R0.1-SNAPSHOT",
   "net.md-5" % "bungeecord-api" % "1.8-SNAPSHOT",
+  "com.sk89q" % "intake" % "3.1.1-SNAPSHOT",
   "org.scalatest" % "scalatest_2.11" % "2.2.1" % "test",
   "org.reactivemongo" %% "reactivemongo" % "0.10.5.0.akka23",
   "com.softwaremill.macwire" %% "macros" % "0.8.0",
   "com.softwaremill.macwire" %% "runtime" % "0.8.0",
   "com.softwaremill.quicklens" %% "quicklens" % "1.2"
+  //"com.github.scopt" %% "scopt" % "3.3.0"
 )

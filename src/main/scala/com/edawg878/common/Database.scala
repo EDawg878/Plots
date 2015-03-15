@@ -1,8 +1,8 @@
 package com.edawg878.common
 
 import java.util.UUID
+import java.util.logging.{Level, Logger}
 
-import com.edawg878.common.Logging.PluginLogging
 import reactivemongo.api.MongoDriver
 import reactivemongo.api.collections.default.BSONCollection
 import reactivemongo.api.indexes.{Index, IndexType}
@@ -14,146 +14,142 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
-/**
- * @author EDawg878 <EDawg878@gmail.com>
- */
-object Database {
+case class Counters(tier: Int = 0, plotLimit: Int = 1, voteCredits: Int = 0)
 
-  case class PlayerData(id: UUID,
-                        name: String,
-                        usernames: Set[String],
-                        displayName: Option[String],
-                        counters: Counters) {
+case class PlayerData(id: UUID,
+                      name: String,
+                      usernames: Set[String],
+                      displayName: Option[String],
+                      perks: Set[String],
+                      counters: Counters) {
 
-    def this(p: Player) =
-      this(p.getUniqueId, p.getName, Set.empty, None, Counters(tier = 0, plotLimit = 1, voteCredits = 0))
+  def this(p: Player) =
+    this(id = p.getUniqueId, name = p.getName, usernames = Set.empty, perks = Set.empty, displayName = None, counters = Counters())
 
+}
+
+trait PlayerRepository {
+
+  def find(p: Player): Future[PlayerData] = {
+    find(p.getUniqueId) map {
+      case Some(data) => data
+      case None => insert(p)
+    }
   }
 
-  case class Counters(tier: Int, plotLimit: Int, voteCredits: Int)
-
-  trait PlayerRepository extends PluginLogging {
-
-    def find(p: Player): Future[PlayerData] = {
-      find(p.getUniqueId) map {
-        case Some(data) =>
-          logger.info(s"some $data")
-          data
-        case None =>
-          val res = insert(p)
-          logger.info(s"none $res")
-          res
-      }
-    }
-
-    def insert(p: Player): PlayerData = {
-      val data = new PlayerData(p)
-      insert(data)
-      data
-    }
-
-    def find(id: UUID): Future[Option[PlayerData]]
-
-    def insert(data: PlayerData): Unit
-
-    def search(name: String): Future[Seq[PlayerData]]
-
-    def save(data: PlayerData): Unit
-
-    def delete(data: PlayerData): Unit
-
+  def insert(p: Player): PlayerData = {
+    val data = new PlayerData(p)
+    insert(data)
+    data
   }
 
-  trait BSONHandlers {
+  def find(id: UUID): Future[Option[PlayerData]]
 
-    implicit object UUIDHandler extends BSONHandler[BSONBinary, UUID] {
+  def insert(data: PlayerData): Unit
 
-      override def write(id: UUID): BSONBinary = BSONBinary(toBytes(id), UuidSubtype)
+  def search(name: String): Future[Seq[PlayerData]]
 
-      private def toBytes(id: UUID): Array[Byte] = {
-        val shifts = Array.range(0, 64, 8).reverse
-        def split(bits: Long) =
-          shifts map (bits >>> _) map (_.asInstanceOf[Byte])
-        split(id.getMostSignificantBits) ++ split(id.getLeastSignificantBits)
-      }
+  def save(data: PlayerData): Unit
 
-      override def read(bson: BSONBinary): UUID = fromBytes(bson.value.readArray(bson.value.size))
+  def delete(id: UUID): Unit
 
-      private def fromBytes(data: Array[Byte]): UUID = {
-        @tailrec
-        def read(r: Range, acc: Long = 0): Long = {
-          if (r.head == r.last) acc
-          else read(r.drop(1), (acc << 8) | (data(r.head) & 0xff))
-        }
-        new UUID(read(0 to 8), read(8 to 16))
-      }
+}
+
+trait BSONHandlers {
+
+  implicit object UUIDHandler extends BSONHandler[BSONBinary, UUID] {
+
+    override def write(id: UUID): BSONBinary = BSONBinary(toBytes(id), UuidSubtype)
+
+    def toBytes(id: UUID): Array[Byte] = {
+      val shifts = Array.range(0, 64, 8).reverse
+      def split(bits: Long) =
+        shifts map (bits >>> _) map (_.asInstanceOf[Byte])
+      split(id.getMostSignificantBits) ++ split(id.getLeastSignificantBits)
     }
 
-    implicit object Writer extends BSONDocumentWriter[PlayerData] {
-      def write(self: PlayerData): BSONDocument = BSONDocument(
+    override def read(bson: BSONBinary): UUID = fromBytes(bson.value.readArray(bson.value.size))
+
+    def fromBytes(data: Array[Byte]): UUID = {
+      @tailrec def read(r: Range, acc: Long = 0): Long = {
+        if (r.head == r.last) acc
+        else read(r.drop(1), (acc << 8) | (data(r.head) & 0xff))
+      }
+      new UUID(read(0 to 8), read(8 to 16))
+    }
+  }
+
+  implicit object Writer extends BSONDocumentWriter[PlayerData] {
+    def write(self: PlayerData): BSONDocument = {
+      def toOption[A](set: Set[A]): Option[Set[A]] = {
+        if (set.isEmpty) None
+        else Some(set)
+      }
+      val counters = self.counters
+      BSONDocument(
         "_id" -> self.id,
         "name" -> self.name,
-        "usernames" -> self.usernames,
         "lowerName" -> self.name.toLowerCase,
+        "usernames" -> toOption(self.usernames),
         "displayName" -> self.displayName,
-        "tier" -> self.counters.tier,
-        "plotLimit" -> self.counters.plotLimit,
-        "voteCredits" -> self.counters.plotLimit
-      )
+        "perks" -> toOption(self.perks),
+        "tier" -> counters.tier,
+        "plotLimit" -> counters.plotLimit,
+        "voteCredits" -> counters.voteCredits)
     }
-
-    implicit object Reader extends BSONDocumentReader[PlayerData] {
-      def read(doc: BSONDocument): PlayerData = {
-        val id = doc.getAs[UUID]("_id").get
-        val name = doc.getAs[String]("name").get
-        val usernames = doc.getAs[Set[String]]("usernames").get
-        val displayName = Some(doc.getAs[String]("displayName").get)
-        val tier = doc.getAs[Int]("tier").get
-        val plotLimit = doc.getAs[Int]("plotLimit").get
-        val voteCredits = doc.getAs[Int]("voteCredits").get
-        val counters = Counters(tier, plotLimit, voteCredits)
-        PlayerData(id, name, usernames, displayName, counters)
-      }
-    }
-
   }
 
-  class MongoPlayerRepository extends PlayerRepository with BSONHandlers with PluginLogging {
+  implicit object Reader extends BSONDocumentReader[PlayerData] {
+    def read(doc: BSONDocument): PlayerData = {
+      val id = doc.getAs[UUID]("_id").get
+      val name = doc.getAs[String]("name").get
+      val usernames = doc.getAs[Set[String]]("usernames").getOrElse(Set.empty)
+      val perks = doc.getAs[Set[String]]("perks").getOrElse(Set.empty)
+      val displayName = doc.getAs[String]("displayName")
+      val tier = doc.getAs[Int]("tier").get
+      val plotLimit = doc.getAs[Int]("plotLimit").get
+      val voteCredits = doc.getAs[Int]("voteCredits").get
+      val counters = Counters(tier, plotLimit, voteCredits)
+      PlayerData(id, name = name, usernames, displayName, perks, counters)
+    }
+  }
 
-    val driver = new MongoDriver
-    val conn = driver.connection(List("localhost"))
-    val db = conn.db("minecraft")
-    val col = db.collection[BSONCollection]("players")
+}
 
-    val index = Index(key = List(("lowerName", IndexType.Descending)))
-    logger.info(s"Ensuring index `lowerName`...")
+class MongoPlayerRepository(logger: Logger) extends PlayerRepository with BSONHandlers {
+
+  val driver = new MongoDriver
+  val conn = driver.connection(List("localhost"))
+  val db = conn.db("minecraft")
+  val col = db.collection[BSONCollection]("players")
+
+  def queryById(id: UUID): BSONDocument = BSONDocument("_id" -> id)
+  def queryByName(name: String): BSONDocument = BSONDocument("lowerName" -> name.toLowerCase)
+
+  def ensureIndexes(): Unit = {
+    val index = Index(key = List(("lowerName", IndexType.Ascending)))
+    logger.info("Ensuring index `lowerName`...")
     col.indexesManager.ensure(index) onComplete {
       case Success(created) =>
-        if (created) logger.info(s"Created `lowerName` index")
+        if (created) logger.info("Created `lowerName` index")
         else logger.info("Index already existed")
       case Failure(t) =>
-        logger.severe("Failed to create index `lowerName`")
+        logger.log(Level.SEVERE, "Failed to create index `lowerName`", t)
     }
-
-    override def find(id: UUID): Future[Option[PlayerData]] = {
-      val query = BSONDocument("_id" -> id)
-      col.find(query).cursor[PlayerData].headOption
-    }
-
-    override def insert(data: PlayerData): Unit = col.insert(data)
-
-    override def save(data: PlayerData): Unit = col.save(data)
-
-    override def search(name: String): Future[Seq[PlayerData]] = {
-      val query = BSONDocument("lowerName" -> name.toLowerCase)
-      col.find(query).cursor[PlayerData].collect[Vector]()
-    }
-
-    override def delete(data: PlayerData): Unit = {
-      val query = BSONDocument("_id" -> data.id)
-      col.remove(query)
-    }
-
   }
+
+  override def find(id: UUID): Future[Option[PlayerData]] =
+    col.find(queryById(id)).cursor[PlayerData]
+      .headOption
+
+  override def insert(data: PlayerData): Unit = col.insert(data)
+
+  override def save(data: PlayerData): Unit = col.save(data)
+
+  override def search(name: String): Future[Seq[PlayerData]] =
+    col.find(queryByName(name)).cursor[PlayerData]
+      .collect[Vector]()
+
+  override def delete(id: UUID): Unit = col.remove(queryById(id))
 
 }

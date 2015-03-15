@@ -5,13 +5,12 @@ import java.nio.file.Path
 import java.util.UUID
 import java.util.logging.Logger
 
-import scala.collection.JavaConverters._
-
 import com.edawg878.common._
 import net.md_5.bungee.api.chat.TextComponent
 import net.md_5.bungee.api.connection.ProxiedPlayer
-import net.md_5.bungee.api.CommandSender
-import net.md_5.bungee.config.{YamlConfiguration, ConfigurationProvider}
+import net.md_5.bungee.config.{ConfigurationProvider, YamlConfiguration}
+
+import scala.collection.JavaConverters._
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
@@ -56,7 +55,7 @@ object BungeeImpl {
 
   }
 
-  implicit class BungeeConsole(val console: CommandSender) extends Console {
+  implicit class BungeeConsole(val console: net.md_5.bungee.api.CommandSender) extends Console {
 
     override def sendMessage(message: String): Unit = console.sendMessage(message)
 
