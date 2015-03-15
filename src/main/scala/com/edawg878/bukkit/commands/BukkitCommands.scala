@@ -53,10 +53,10 @@ class TierCommand(val db: PlayerRepository) extends CommandExecutor with Readers
 
   implicit val operationReader: Read[Operation] =
     Read.reads {
-      case "plus"  => Operation.Add
-      case "minus" => Operation.Subtract
-      case "set"   => Operation.Set
-      case "info"  => Operation.Info
+      case "+"    => Operation.Add
+      case "-"    => Operation.Subtract
+      case "set"  => Operation.Set
+      case "show" => Operation.Info
     }
 
   case class Config(ops: Operation = null, data: Future[PlayerData] = null, tier: Int = 1)
@@ -71,7 +71,7 @@ class TierCommand(val db: PlayerRepository) extends CommandExecutor with Readers
   val parser = new BukkitOptionParser[Config]("/tier") {
     arg[Operation]("<operation>") required() action { (x, c) =>
       c.copy(ops = x)
-    } text "operations: plus, minus, set, info"
+    } text "operations: +, -, set, show"
     arg[Future[PlayerData]]("<player>") required() action { (x, c) =>
       c.copy(data = x)
     } text "player to modify"
@@ -114,9 +114,9 @@ class PerkCommand(val db: PlayerRepository) extends CommandExecutor with Readers
 
   implicit val operationReader: Read[Operation] =
     Read.reads {
-      case "plus" => Operation.Add
-      case "minus" => Operation.Subtract
-      case "info" => Operation.Info
+      case "+"     => Operation.Add
+      case "-"     => Operation.Subtract
+      case "show"  => Operation.Info
       case "clear" => Operation.Clear
     }
 
@@ -132,7 +132,7 @@ class PerkCommand(val db: PlayerRepository) extends CommandExecutor with Readers
   val parser = new BukkitOptionParser[Config]("/perk") {
     arg[Operation]("<operation>") required() action { (x, c) =>
       c.copy(ops = x)
-    } text "operations: plus, minus, clear, info"
+    } text "operations: +, -, clear, show"
     arg[Future[PlayerData]]("<player>") required() action { (x, c) =>
       c.copy(data = x)
     } text "player to modify"
