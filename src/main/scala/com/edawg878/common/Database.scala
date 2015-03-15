@@ -126,15 +126,18 @@ class MongoPlayerRepository(logger: Logger) extends PlayerRepository with BSONHa
   def queryByName(name: String): BSONDocument = BSONDocument("lowerName" -> name.toLowerCase)
 
   def ensureIndexes(): Unit = {
-    val index = Index(key = List(("lowerName", IndexType.Ascending)))
-    logger.info("Ensuring index `lowerName`...")
-    col.indexesManager.ensure(index) onComplete {
-      case Success(created) =>
-        if (created) logger.info("Created `lowerName` index")
-        else logger.info("Index already existed")
-      case Failure(t) =>
-        logger.log(Level.SEVERE, "Failed to create index `lowerName`", t)
+    def ensureIndex(name: String, index: Index) = {
+      logger.info(s"Ensuring index '$name'...")
+      col.indexesManager.ensure(index) onComplete {
+        case Success(created) =>
+          if (created) logger.info(s"Created '$name' index")
+          else logger.info("Index already existed")
+        case Failure(t) =>
+          logger.log(Level.SEVERE, s"Failed to create index '$name'", t)
+      }
     }
+    val lowerNameIndex = Index(key = List(("lowerName", IndexType.Ascending)))
+    ensureIndex("Lowercase Username Index", lowerNameIndex)
   }
 
   override def find(id: UUID): Future[Option[PlayerData]] =
