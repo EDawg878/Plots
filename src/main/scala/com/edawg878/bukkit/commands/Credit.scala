@@ -1,9 +1,7 @@
 package com.edawg878.bukkit.commands
 
-import com.edawg878.bukkit.commands.Operation._
-import com.edawg878.common.Conversions.RichPlayerData
+import com.edawg878.common.Command.{IntOps, IntOp}
 import com.edawg878.common.{PlayerData, PlayerRepository, Readers}
-import com.softwaremill.quicklens.modify
 import org.bukkit.command.CommandSender
 
 import scala.concurrent.Future
@@ -13,13 +11,13 @@ import scala.concurrent.Future
  */
 object Credit {
 
-  private case class CreditConfig(ops: Operation, data: Future[PlayerData], credits: Int)
+  private[Credit] case class Config(fn: IntOp, data: Future[PlayerData], credits: Int)
 
-  class CreditCommand(val db: PlayerRepository) extends BukkitCommand[CreditConfig] with Readers with NumericalOperations {
+  class CreditCommand(val db: PlayerRepository) extends BukkitCommand[Config] with Readers with IntOps {
 
-    override val parser = new BukkitOptionParser[CreditConfig]("/credit") {
-      arg[Operation]("<operation>") required() action { (x, c) =>
-        c.copy(ops = x)
+    override val parser = new BukkitOptionParser[Config]("/credit") {
+      arg[IntOp]("<operation>") required() action { (x, c) =>
+        c.copy(fn = x)
       } text "operations: +, -, set, show"
       arg[Future[PlayerData]]("<player>") required() action { (x, c) =>
         c.copy(data = x)
@@ -29,17 +27,16 @@ object Credit {
       }
     }
 
-    override val default: CreditConfig = CreditConfig(ops = Operation.Info, data = null, credits = 1)
+    override val default: Config = Config(fn = Show, data = null, credits = 1)
 
-    override def handle(sender: CommandSender, c: CreditConfig): Unit =
+    override def handle(sender: CommandSender, c: Config): Unit =
       onComplete(sender, c.data) { data =>
-        c.ops match {
+        c.fn match {
           case Add | Subtract | Set =>
-            val updated = modify(data)(_.counters.voteCredits)
-              .using(calculate(_, c.credits)(c.ops).max(0))
+            val updated = data.copy(voteCredits = c.fn(data.voteCredits, c.credits).max(0))
             sender.sendMessage(updated.displayCredits)
             db.save(updated)
-          case Info => sender.sendMessage(data.displayCredits)
+          case Show => sender.sendMessage(data.displayCredits)
         }
       }
 

@@ -4,6 +4,7 @@ import java.util.UUID
 import java.util.logging.{Level, Logger}
 
 import com.edawg878.common.Conversions._
+import com.edawg878.common.MessageFormatter._
 import reactivemongo.api.MongoDriver
 import reactivemongo.api.collections.default.BSONCollection
 import reactivemongo.api.indexes.{Index, IndexType}
@@ -11,30 +12,57 @@ import reactivemongo.bson.Subtype.UuidSubtype
 import reactivemongo.bson._
 
 import scala.annotation.tailrec
+import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
-case class Counters(tier: Int = 0, plotLimit: Int = 1, voteCredits: Int = 0)
-
 case class PlayerData(id: UUID,
                       name: String,
-                      usernames: Set[String],
-                      displayName: Option[String],
-                      perks: Set[String],
-                      counters: Counters) {
+                      usernames: Set[String] = Set.empty,
+                      displayName: Option[String] = None,
+                      perks: Set[String] = Set.empty,
+                      tier: Int = 0,
+                      plotLimit: Int = 1,
+                      voteCredits: Int = 0) {
 
   def this(p: Player) =
-    this(id = p.getUniqueId, name = p.getName, usernames = Set.empty, perks = Set.empty, displayName = None, counters = Counters())
+    this(id = p.getUniqueId, name = p.getName)
+
+  def displayTier: String = info"[$name] has tier [$tier]"
+
+  def displayCredits: String = {
+    if (voteCredits == 0) info"[$name] has no credits"
+    else if (voteCredits == 1) info"[$name] has [1] credit"
+    else info"[$name] has [$voteCredits] credits"
+  }
+
+  def displayPerks: String = {
+    if (perks.isEmpty) info"[$name] has no perks"
+    else info"[$name] has the following perks: ${perks.mkStringPretty}"
+  }
 
 }
+
+class PlayerNotFound(name: String) extends RuntimeException(s"Player '$name' was not found in database")
 
 trait PlayerRepository {
 
   def find(p: Player): Future[PlayerData] = {
-    find(p.getUniqueId) map {
+    search(p.getUniqueId) map {
       case Some(data) => data
-      case None => insert(p)
+      case None => throw new PlayerNotFound(p.getName)
+    }
+  }
+
+  def find(ids: UUID*): Future[Seq[PlayerData]] = {
+    Future.traverse(ids)(find)
+  }
+
+  def find(id: UUID): Future[PlayerData] = {
+    search(id) map {
+      case Some(data) => data
+      case None => throw new PlayerNotFound(id.toString)
     }
   }
 
@@ -44,9 +72,9 @@ trait PlayerRepository {
     data
   }
 
-  def find(id: UUID): Future[Option[PlayerData]]
-
   def insert(data: PlayerData): Unit
+
+  def search(id: UUID): Future[Option[PlayerData]]
 
   def search(name: String): Future[Seq[PlayerData]]
 
@@ -82,7 +110,6 @@ trait BSONHandlers {
 
   implicit object Writer extends BSONDocumentWriter[PlayerData] {
     def write(self: PlayerData): BSONDocument = {
-      val counters = self.counters
       BSONDocument(
         "_id" -> self.id,
         "name" -> self.name,
@@ -90,24 +117,32 @@ trait BSONHandlers {
         "usernames" -> self.usernames.toOption,
         "displayName" -> self.displayName,
         "perks" -> self.perks.toOption,
-        "tier" -> counters.tier,
-        "plotLimit" -> counters.plotLimit,
-        "voteCredits" -> counters.voteCredits)
+        "tier" -> self.tier,
+        "plotLimit" -> self.plotLimit,
+        "voteCredits" -> self.voteCredits)
     }
   }
 
   implicit object Reader extends BSONDocumentReader[PlayerData] {
     def read(doc: BSONDocument): PlayerData = {
-      val id = doc.getAs[UUID]("_id").get
-      val name = doc.getAs[String]("name").get
-      val usernames = doc.getAs[Set[String]]("usernames").getOrElse(Set.empty)
-      val perks = doc.getAs[Set[String]]("perks").getOrElse(Set.empty)
-      val displayName = doc.getAs[String]("displayName")
-      val tier = doc.getAs[Int]("tier").get
-      val plotLimit = doc.getAs[Int]("plotLimit").get
-      val voteCredits = doc.getAs[Int]("voteCredits").get
-      val counters = Counters(tier, plotLimit, voteCredits)
-      PlayerData(id, name = name, usernames, displayName, perks, counters)
+      val _id = doc.getAs[UUID]("_id").get
+      val _name = doc.getAs[String]("name").get
+      val _usernames = doc.getAs[Set[String]]("usernames").getOrElse(Set.empty)
+      val _perks = doc.getAs[Set[String]]("perks").getOrElse(Set.empty)
+      val _displayName = doc.getAs[String]("displayName")
+      val _tier = doc.getAs[Int]("tier").get
+      val _plotLimit = doc.getAs[Int]("plotLimit").get
+      val _voteCredits = doc.getAs[Int]("voteCredits").get
+      PlayerData(
+        id = _id,
+        name = _name,
+        usernames = _usernames,
+        perks = _perks,
+        displayName = _displayName,
+        tier = _tier,
+        plotLimit = _plotLimit,
+        voteCredits = _voteCredits
+      )
     }
   }
 
@@ -124,28 +159,28 @@ class MongoPlayerRepository(logger: Logger) extends PlayerRepository with BSONHa
 
   def queryByName(name: String): BSONDocument = BSONDocument("lowerName" -> name.toLowerCase)
 
-  def ensureIndexes(): Unit = {
-    def ensureIndex(name: String, index: Index) = {
-      logger.info(s"Ensuring index '$name'...")
-      col.indexesManager.ensure(index) onComplete {
-        case Success(created) =>
-          if (created) logger.info(s"Created '$name' index")
-          else logger.info("Index already existed")
-        case Failure(t) =>
-          logger.log(Level.SEVERE, s"Failed to create index '$name'", t)
-      }
+  private def ensureIndex(name: String, index: Index): Unit = {
+    logger.info(s"Ensuring index '$name'...")
+    col.indexesManager.ensure(index) onComplete {
+      case Success(created) =>
+        if (created) logger.info(s"Created '$name' index")
+        else logger.info("Index already existed")
+      case Failure(t) =>
+        logger.log(Level.SEVERE, s"Failed to create index '$name'", t)
     }
-    val lowerNameIndex = Index(key = List(("lowerName", IndexType.Ascending)))
-    ensureIndex("Lowercase Username", lowerNameIndex)
   }
 
-  override def find(id: UUID): Future[Option[PlayerData]] =
-    col.find(queryById(id)).cursor[PlayerData]
-      .headOption
+  def ensureIndexes(): Unit = {
+    ensureIndex("Lowercase Username", Index(key = List(("lowerName", IndexType.Ascending))))
+  }
 
   override def insert(data: PlayerData): Unit = col.insert(data)
 
   override def save(data: PlayerData): Unit = col.save(data)
+
+  override def search(id: UUID): Future[Option[PlayerData]] =
+    col.find(queryById(id)).cursor[PlayerData]
+      .headOption
 
   override def search(name: String): Future[Seq[PlayerData]] =
     col.find(queryByName(name)).cursor[PlayerData]

@@ -10,8 +10,6 @@ import scala.concurrent.Future
  */
 trait Readers {
 
-  val db: PlayerRepository
-
   implicit val playerDataReader: Read[Future[PlayerData]] =
     Read.reads { name =>
       db.search(name) map { seq =>
@@ -20,5 +18,7 @@ trait Readers {
         else seq.head
       }
     }
+
+  def db: PlayerRepository
 
 }
