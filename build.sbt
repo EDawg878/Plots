@@ -32,7 +32,7 @@ libraryDependencies ++= Seq(
   "org.reactivemongo" %% "reactivemongo" % "0.10.5.0.akka23",
   "com.softwaremill.macwire" %% "macros" % "0.8.0",
   "com.softwaremill.macwire" %% "runtime" % "0.8.0",
-  "com.softwaremill.quicklens" %% "quicklens" % "1.2",
+  //"com.softwaremill.quicklens" %% "quicklens" % "1.2",
   "com.typesafe.akka" %% "akka-actor" % "2.3.6",
   "com.typesafe.akka" %% "akka-contrib" % "2.3.6"
   //"com.github.scopt" %% "scopt" % "3.3.0"

@@ -1,7 +1,8 @@
 package com.edawg878.bukkit.commands
 
 import com.edawg878.common.Command.{IntOp, IntOps}
-import com.edawg878.common.{PlayerData, PlayerRepository, Readers}
+import com.edawg878.common.Readers.PlayerDataReader
+import com.edawg878.common.{PlayerData, PlayerRepository}
 import com.edawg878.common.Conversions.RichInt
 import org.bukkit.command.CommandSender
 
@@ -14,7 +15,7 @@ object Tier {
 
   private[Tier] case class Config(fn: IntOp, data: Future[PlayerData], tier: Int)
 
-  class TierCommand(val db: PlayerRepository) extends BukkitCommand[Config] with Readers with IntOps {
+  class TierCommand(val db: PlayerRepository) extends BukkitCommand[Config] with PlayerDataReader with IntOps {
 
     override val parser = new BukkitOptionParser[Config]("/tier") {
       arg[IntOp]("<operation>") required() action { (x, c) =>

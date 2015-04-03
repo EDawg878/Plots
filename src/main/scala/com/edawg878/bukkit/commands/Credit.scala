@@ -1,7 +1,8 @@
 package com.edawg878.bukkit.commands
 
 import com.edawg878.common.Command.{IntOps, IntOp}
-import com.edawg878.common.{PlayerData, PlayerRepository, Readers}
+import com.edawg878.common.Readers.PlayerDataReader
+import com.edawg878.common.{PlayerData, PlayerRepository}
 import org.bukkit.command.CommandSender
 
 import scala.concurrent.Future
@@ -13,7 +14,7 @@ object Credit {
 
   private[Credit] case class Config(fn: IntOp, data: Future[PlayerData], credits: Int)
 
-  class CreditCommand(val db: PlayerRepository) extends BukkitCommand[Config] with Readers with IntOps {
+  class CreditCommand(val db: PlayerRepository) extends BukkitCommand[Config] with PlayerDataReader with IntOps {
 
     override val parser = new BukkitOptionParser[Config]("/credit") {
       arg[IntOp]("<operation>") required() action { (x, c) =>

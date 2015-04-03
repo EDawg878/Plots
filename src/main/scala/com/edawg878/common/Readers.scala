@@ -2,23 +2,73 @@ package com.edawg878.common
 
 import scopt.Read
 
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
-
 /**
  * @author EDawg878 <EDawg878@gmail.com>
  */
-trait Readers {
+object Readers {
 
-  implicit val playerDataReader: Read[Future[PlayerData]] =
-    Read.reads { name =>
-      db.search(name) map { seq =>
-        if (seq.isEmpty)
-          throw new IllegalArgumentException(s"Player data not found for username '$name'")
-        else seq.head
+  trait PlayerDataReader {
+
+    import scala.concurrent.ExecutionContext.Implicits.global
+    import scala.concurrent.Future
+
+    implicit val playerDataReader: Read[Future[PlayerData]] =
+      Read.reads { name =>
+        db.search(name) map { seq =>
+          if (seq.isEmpty)
+            throw new IllegalArgumentException(s"Player data not found for username '$name'")
+          else seq.head
+        }
       }
+
+    def db: PlayerRepository
+
+  }
+
+  sealed trait PlayerReader[P] {
+
+    def getPlayer(name: String): P
+
+    implicit val player: Read[P] =
+      Read.reads { s =>
+        Option(getPlayer(s)) match {
+          case Some(p) => p
+          case _ =>
+            throw new IllegalArgumentException(s"'$s' is not online")
+        }
+      }
+
+  }
+
+  object Bukkit {
+
+    import org.bukkit.Server
+    import org.bukkit.entity.Player
+
+    trait BukkitReaders extends PlayerReader[Player] {
+
+      override def getPlayer(name: String): Player = server.getPlayerExact(name)
+
+      def server: Server
+
     }
 
-  def db: PlayerRepository
+  }
+
+  object Bungee {
+
+    import net.md_5.bungee.api.ProxyServer
+    import net.md_5.bungee.api.connection.ProxiedPlayer
+
+    trait BungeeReaders extends PlayerReader[ProxiedPlayer] {
+
+      override def getPlayer(name: String): ProxiedPlayer = server.getPlayer(name)
+
+      def server: ProxyServer
+
+    }
+  }
+
+
 
 }
