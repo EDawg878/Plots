@@ -5,3 +5,4 @@ commands:
   tier: {}
   perk: {}
   credit: {}
+  group: {}

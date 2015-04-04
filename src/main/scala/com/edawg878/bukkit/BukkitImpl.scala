@@ -5,7 +5,8 @@ import java.nio.file.Path
 import java.util.UUID
 import java.util.logging.Logger
 
-import com.edawg878.common.{Configuration, ConfigurationSection, Console, Plugin}
+import com.edawg878.common.Server
+import com.edawg878.common.Server._
 import org.bukkit.configuration.file._
 import org.bukkit.entity.Player
 
@@ -73,7 +74,7 @@ object BukkitImpl {
 
   }
 
-  implicit class BukkitPlayer(val player: Player) extends com.edawg878.common.Player {
+  implicit class BukkitPlayer(val player: Player) extends Server.Player {
 
     override def getName: String = player.getName
 

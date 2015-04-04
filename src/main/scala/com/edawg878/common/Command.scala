@@ -1,5 +1,7 @@
 package com.edawg878.common
 
+import com.edawg878.common.Group.Group
+import scopt.ConsoleHandler.ConsoleHandler
 import scopt.{Read, CustomOptionParser}
 
 import scala.concurrent.Future
@@ -45,11 +47,62 @@ object Command {
     def parser: CustomOptionParser[_, S]
   }
 
+  object Bukkit {
 
-  type IntOp = (Int, Int) => Int
-  type PerkOp = (Set[String], String) => Set[String]
+    import org.bukkit.command.{Command, CommandExecutor, CommandSender}
 
-  trait IntOps {
+    val handler: ConsoleHandler[CommandSender] = new ConsoleHandler[CommandSender] {
+
+      override def print(sender: CommandSender, msg: String): Unit = sender.sendMessage(msg)
+
+      override def exit(): Unit = {}
+
+      override def printError(sender: CommandSender, msg: String): Unit =
+        sender.sendMessage(MessageFormatter.ERROR + msg)
+
+    }
+
+    class BukkitOptionParser[C](cmd: String) extends CustomOptionParser[C, CommandSender](cmd)(handler)
+
+    abstract class BukkitCommand[C] extends ConfigCommand[C, CommandSender] with CommandExecutor {
+
+      override def onCommand(sender: CommandSender, command: Command, label: String, args: Array[String]): Boolean = {
+        run(sender, args)
+      }
+
+    }
+  }
+
+  object Bungee {
+
+    import net.md_5.bungee.api.CommandSender
+    import net.md_5.bungee.api.chat.TextComponent
+    import net.md_5.bungee.api.plugin.Command
+
+    val handler: ConsoleHandler[CommandSender] = new ConsoleHandler[CommandSender] {
+
+      override def print(sender: CommandSender, msg: String): Unit =
+        sender.sendMessage(TextComponent.fromLegacyText(msg): _*)
+
+      override def exit(): Unit = {}
+
+      override def printError(sender: CommandSender, msg: String): Unit =
+        sender.sendMessage(TextComponent.fromLegacyText(MessageFormatter.ERROR + msg): _*)
+    }
+
+    abstract class BungeeCommand[C](cmd: String) extends Command(cmd) with ConfigCommand[C, CommandSender] {
+
+      override def execute(sender: CommandSender, args: Array[String]): Unit = run(sender, args)
+
+    }
+
+  }
+
+  class IllegalOperation extends IllegalArgumentException("Invalid Operation")
+
+  object IntOps {
+
+    type IntOp = (Int, Int) => Int
 
     val Add: IntOp = (x, y) => x + y
 
@@ -65,12 +118,14 @@ object Command {
         case "-" => Subtract
         case "set" => Set
         case "show" => Show
-        case _ => throw new IllegalArgumentException("Invalid Operation")
+        case _ => throw new IllegalOperation
       }
 
   }
 
-  trait PerkOps {
+  object PerkOps {
+
+    type PerkOp = (Set[String], String) => Set[String]
 
     val Add: PerkOp = (col, str) => col + str
 
@@ -86,7 +141,30 @@ object Command {
         case "-" => Subtract
         case "show" => Show
         case "clear" => Clear
-        case _ => throw new IllegalArgumentException("Invalid Operation")
+        case _ => throw new IllegalOperation
+      }
+
+  }
+
+  object GroupOps {
+
+    type GroupOp = (Group, Group) => Group
+
+    val Promote: GroupOp = (a, _) => a.promote
+
+    val Demote: GroupOp = (a, _) => a.demote
+
+    val Set: GroupOp = (_, b) => b
+
+    val Show: GroupOp = (a, _) => a
+
+    implicit val reader: Read[GroupOp] =
+      Read.reads {
+        case "promote" => Promote
+        case "demote" => Demote
+        case "set" => Set
+        case "show" => Show
+        case _ => throw new IllegalOperation
       }
 
   }

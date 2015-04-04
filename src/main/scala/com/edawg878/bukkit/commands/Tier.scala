@@ -1,6 +1,7 @@
 package com.edawg878.bukkit.commands
 
-import com.edawg878.common.Command.{IntOp, IntOps}
+import com.edawg878.common.Command.Bukkit.{BukkitOptionParser, BukkitCommand}
+import com.edawg878.common.Command.IntOps._
 import com.edawg878.common.Readers.PlayerDataReader
 import com.edawg878.common.{PlayerData, PlayerRepository}
 import com.edawg878.common.Conversions.RichInt
@@ -13,9 +14,11 @@ import scala.concurrent.Future
  */
 object Tier {
 
-  private[Tier] case class Config(fn: IntOp, data: Future[PlayerData], tier: Int)
+  case class Config(fn: IntOp, data: Future[PlayerData], tier: Int)
 
-  class TierCommand(val db: PlayerRepository) extends BukkitCommand[Config] with PlayerDataReader with IntOps {
+  class TierCommand(val db: PlayerRepository) extends BukkitCommand[Config] with PlayerDataReader {
+
+    override val default: Config = Config(fn = Show, data = null, tier = 1)
 
     override val parser = new BukkitOptionParser[Config]("/tier") {
       arg[IntOp]("<operation>") required() action { (x, c) =>
@@ -28,8 +31,6 @@ object Tier {
         c.copy(tier = x)
       } text "number of tiers to add/subtract/set"
     }
-
-    override val default: Config = Config(fn = Show, data = null, tier = 1)
 
     override def handle(sender: CommandSender, c: Config): Unit =
       onComplete(sender, c.data) { data =>

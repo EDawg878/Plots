@@ -1,6 +1,8 @@
 package com.edawg878.common
 
+import com.edawg878.bukkit.commands.Group.GroupCommand
 import com.softwaremill.macwire.Macwire
+import com.edawg878.common.Server._
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
@@ -27,6 +29,7 @@ object Modules {
     lazy val tierCommand = wire[TierCommand].asInstanceOf[CommandExecutor]
     lazy val perkCommand = wire[PerkCommand].asInstanceOf[CommandExecutor]
     lazy val creditCommand = wire[CreditCommand].asInstanceOf[CommandExecutor]
+    lazy val groupCommand = wire[GroupCommand].asInstanceOf[CommandExecutor]
 
     override def plugin = bukkitPlugin
 

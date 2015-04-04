@@ -1,6 +1,7 @@
 package com.edawg878.bukkit.commands
 
-import com.edawg878.common.Command.{PerkOps, PerkOp}
+import com.edawg878.common.Command.Bukkit.{BukkitOptionParser, BukkitCommand}
+import com.edawg878.common.Command.PerkOps._
 import com.edawg878.common.Readers.PlayerDataReader
 import com.edawg878.common.{PlayerData, PlayerRepository}
 import org.bukkit.command.CommandSender
@@ -12,9 +13,10 @@ import scala.concurrent.Future
  */
 object Perk {
 
-  private[Perk] case class Config(fn: PerkOp, data: Future[PlayerData], perk: String)
+  case class Config(fn: PerkOp, data: Future[PlayerData], perk: String)
 
-  class PerkCommand(val db: PlayerRepository) extends BukkitCommand[Config] with PlayerDataReader with PerkOps {
+  class PerkCommand(val db: PlayerRepository) extends BukkitCommand[Config] with PlayerDataReader {
+
     override val default = Config(fn = Show, data = null, perk = "")
 
     override val parser = new BukkitOptionParser[Config]("/perk") {

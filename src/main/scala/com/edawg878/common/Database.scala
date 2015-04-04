@@ -4,15 +4,17 @@ import java.util.UUID
 import java.util.logging.{Level, Logger}
 
 import com.edawg878.common.Conversions._
-import com.edawg878.common.MessageFormatter._
+import com.edawg878.common.Group.Group
+import com.edawg878.common.Server.Player
+import net.md_5.bungee.api.ChatColor
 import reactivemongo.api.MongoDriver
 import reactivemongo.api.collections.default.BSONCollection
 import reactivemongo.api.indexes.{Index, IndexType}
 import reactivemongo.bson.Subtype.UuidSubtype
 import reactivemongo.bson._
+import com.edawg878.common.MessageFormatter._
 
 import scala.annotation.tailrec
-import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
@@ -21,6 +23,7 @@ case class PlayerData(id: UUID,
                       name: String,
                       usernames: Set[String] = Set.empty,
                       displayName: Option[String] = None,
+                      group: Group = Group.Default,
                       perks: Set[String] = Set.empty,
                       tier: Int = 0,
                       plotLimit: Int = 1,
@@ -42,22 +45,30 @@ case class PlayerData(id: UUID,
     else info"[$name] has the following perks: ${perks.mkStringPretty}"
   }
 
+  def displayGroup = info"[$name] is in group [${group.name}]"
+
 }
 
-class PlayerNotFound(name: String) extends RuntimeException(s"Player '$name' was not found in database")
+class PlayerNotFound(name: String) extends RuntimeException(s"Player '$name' was not found in the database")
 
 trait PlayerRepository {
 
-  def find(p: Player): Future[PlayerData] = {
-    search(p.getUniqueId) map {
+  def find(player: Player): Future[PlayerData] = {
+    search(player.getUniqueId) map {
       case Some(data) => data
-      case None => throw new PlayerNotFound(p.getName)
+      case None => throw new PlayerNotFound(player.getName)
     }
   }
 
-  def find(ids: UUID*): Future[Seq[PlayerData]] = {
-    Future.traverse(ids)(find)
-  }
+  def traverseById(ids: UUID*): Future[Seq[PlayerData]] = Future.traverse(ids)(find)
+
+  def traverseByName(names: String*): Future[Seq[PlayerData]] = Future.traverse(names)(name =>
+    search(name) map { seq =>
+      if (seq.isEmpty) throw new PlayerNotFound(name)
+      else seq.head
+    })
+
+  def traverse(players: Player*): Future[Seq[PlayerData]] = Future.traverse(players)(find)
 
   def find(id: UUID): Future[PlayerData] = {
     search(id) map {
@@ -108,23 +119,29 @@ trait BSONHandlers {
     }
   }
 
-  implicit object Writer extends BSONDocumentWriter[PlayerData] {
-    def write(self: PlayerData): BSONDocument = {
+  implicit object GroupHandler extends BSONHandler[BSONString, Group] {
+    override def write(g: Group): BSONString = BSONString(g.name)
+
+    override def read(bson: BSONString): Group = Group.withName(bson.value).get
+  }
+
+  implicit object PlayerDataHandler extends BSONDocumentWriter[PlayerData] with BSONDocumentReader[PlayerData] {
+    override def write(self: PlayerData): BSONDocument = {
       BSONDocument(
         "_id" -> self.id,
         "name" -> self.name,
         "lowerName" -> self.name.toLowerCase,
         "usernames" -> self.usernames.toOption,
         "displayName" -> self.displayName,
+        "group" -> self.group,
         "perks" -> self.perks.toOption,
         "tier" -> self.tier,
         "plotLimit" -> self.plotLimit,
-        "voteCredits" -> self.voteCredits)
+        "voteCredits" -> self.voteCredits
+      )
     }
-  }
 
-  implicit object Reader extends BSONDocumentReader[PlayerData] {
-    def read(doc: BSONDocument): PlayerData = {
+    override def read(doc: BSONDocument): PlayerData = {
       val _id = doc.getAs[UUID]("_id").get
       val _name = doc.getAs[String]("name").get
       val _usernames = doc.getAs[Set[String]]("usernames").getOrElse(Set.empty)
@@ -133,6 +150,7 @@ trait BSONHandlers {
       val _tier = doc.getAs[Int]("tier").get
       val _plotLimit = doc.getAs[Int]("plotLimit").get
       val _voteCredits = doc.getAs[Int]("voteCredits").get
+      val _group = doc.getAs[Group]("group").get
       PlayerData(
         id = _id,
         name = _name,
@@ -141,7 +159,8 @@ trait BSONHandlers {
         displayName = _displayName,
         tier = _tier,
         plotLimit = _plotLimit,
-        voteCredits = _voteCredits
+        voteCredits = _voteCredits,
+        group = _group
       )
     }
   }

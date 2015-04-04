@@ -1,11 +1,21 @@
 package com.edawg878.common
 
+import com.edawg878.common.Group.Group
 import scopt.Read
+
+import scala.util.Try
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
  */
 object Readers {
+
+  object Implicits {
+
+    implicit val groupReader: Read[Group] =
+      Read.reads(name => Group.withName(name, ignoreCase = true).getOrElse(throw new IllegalArgumentException(s"Invalid group '$name'")))
+
+  }
 
   trait PlayerDataReader {
 
@@ -30,13 +40,7 @@ object Readers {
     def getPlayer(name: String): P
 
     implicit val player: Read[P] =
-      Read.reads { s =>
-        Option(getPlayer(s)) match {
-          case Some(p) => p
-          case _ =>
-            throw new IllegalArgumentException(s"'$s' is not online")
-        }
-      }
+      Read.reads(s => Option(getPlayer(s)).getOrElse(throw new IllegalArgumentException(s"'$s' is not online")))
 
   }
 
@@ -68,7 +72,5 @@ object Readers {
 
     }
   }
-
-
 
 }
