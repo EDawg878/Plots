@@ -1,6 +1,6 @@
 package com.edawg878.common
 
-import java.time.{ZoneId, Duration}
+import java.time._
 import java.util.concurrent.TimeUnit
 
 import scala.annotation.tailrec
@@ -9,10 +9,6 @@ import scala.annotation.tailrec
  * @author EDawg878 <EDawg878@gmail.com>
  */
 object DateUnit {
-
-  object Zones {
-    val Default: ZoneId = ZoneId.of("America/Los_Angeles")
-  }
 
   sealed trait DateUnit {
     def singular: String
@@ -58,9 +54,15 @@ object DateUnit {
   }
 
   object Implicits {
-    // Must be sorted
-    implicit val precise: Seq[DateUnit] = Vector(Years, Months, Days, Hours, Minutes, Seconds)
-    implicit val standard: Seq[DateUnit] = Vector(Years, Months, Days, Hours, Minutes)
+    // Units should be sorted descending
+    implicit val preciseUnits: Seq[DateUnit] = Vector(Years, Months, Days, Hours, Minutes, Seconds)
+    implicit val standardUnits: Seq[DateUnit] = Vector(Years, Months, Days, Hours, Minutes)
+    implicit val defaultZone: ZoneId = ZoneId.of("America/Los_Angeles")
+    implicit class RichInstant(time: Instant) {
+      def toLocalDate(implicit zone: ZoneId): LocalDate = time.atZone(zone).toLocalDate
+      def toLocalDateTime(implicit zone: ZoneId): LocalDateTime = time.atZone(zone).toLocalDateTime
+      def toLocalTIme(implicit zone: ZoneId): LocalTime = time.atZone(zone).toLocalTime
+    }
   }
 
   def format(duration: Duration, abbreviate: Boolean = false)(implicit units: Seq[DateUnit]): Seq[String] = {

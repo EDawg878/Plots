@@ -47,7 +47,7 @@ class BukkitMain extends JavaPlugin with Listener {
 
   @EventHandler
   def onJoin(event: PlayerJoinEvent) {
-    val player = event.getPlayer
+    val player = event.getPlayer.toPlayer
     db.find(player) onSuccess {
       case data =>
         val updated = data.copy(playTime = data.playTime.login)
@@ -57,7 +57,7 @@ class BukkitMain extends JavaPlugin with Listener {
 
   @EventHandler
   def onQuit(event: PlayerQuitEvent): Unit = {
-    val player = event.getPlayer
+    val player = event.getPlayer.toPlayer
     db.find(player) onSuccess {
       case data =>
         val updated = data.copy(playTime = data.playTime.logout)

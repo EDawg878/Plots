@@ -29,6 +29,7 @@ object PlayTime {
     override def handle(sender: CommandSender, c: Config): Unit =
       onComplete(sender, c.data) { data =>
         val online = server.isOnline(data.id)
+        sender.sendMessage(s"${data.name} is online = $online")
         sender.sendMessage(data.displayPlayTime(online))
       }
 

@@ -46,43 +46,51 @@ object BungeeImpl {
 
   }
 
-  implicit class BungeePlugin(val plugin: net.md_5.bungee.api.plugin.Plugin) extends Plugin {
+  implicit class BungeePlugin(val plugin: net.md_5.bungee.api.plugin.Plugin) {
 
-    override def getDataFolder: Path = plugin.getDataFolder.toPath
+    def toPlugin: Plugin = new Plugin {
+      override def getDataFolder: Path = plugin.getDataFolder.toPath
 
-    override def getLogger: Logger = plugin.getLogger
+      override def getLogger: Logger = plugin.getLogger
 
-    override def getResource(name: String): InputStream = plugin.getResourceAsStream(name)
-
-  }
-
-  implicit class BungeeConsole(val console: net.md_5.bungee.api.CommandSender) extends Console {
-
-    override def sendMessage(message: String): Unit = console.sendMessage(message)
-
-    override def hasPermission(permission: String): Boolean = console.hasPermission(permission)
+      override def getResource(name: String): InputStream = plugin.getResourceAsStream(name)
+    }
 
   }
 
-  implicit class BungeePlayer(val player: ProxiedPlayer) extends Player {
+  implicit class BungeeConsole(val console: net.md_5.bungee.api.CommandSender)  {
 
-    override def getName: String = player.getName
+    def toConsole: Console = new Console {
+      override def sendMessage(message: String): Unit = console.sendMessage(message)
 
-    override def getUniqueId: UUID = player.getUniqueId
-
-    override def sendMessage(message: String): Unit = player.sendMessage(TextComponent.fromLegacyText(message): _*)
-
-    override def hasPermission(permission: String): Boolean = player.hasPermission(permission)
-
-    override def getDisplayName: String = player.getDisplayName
+      override def hasPermission(permission: String): Boolean = console.hasPermission(permission)
+    }
 
   }
 
-  implicit class BungeeServer(val server: ProxyServer) extends Server {
+  implicit class BungeePlayer(val player: ProxiedPlayer) {
 
-    override def getPlayer(name: String): Option[Player] = Option(server.getPlayer(name))
+    def toPlayer: Player = new Player {
+      override def getName: String = player.getName
 
-    override def getPlayer(id: UUID): Option[Player] = Option(server.getPlayer(id))
+      override def getUniqueId: UUID = player.getUniqueId
+
+      override def sendMessage(message: String): Unit = player.sendMessage(TextComponent.fromLegacyText(message): _*)
+
+      override def hasPermission(permission: String): Boolean = player.hasPermission(permission)
+
+      override def getDisplayName: String = player.getDisplayName
+    }
+
+  }
+
+  implicit class BungeeServer(val server: ProxyServer) {
+
+    def toServer: Server = new Server {
+      override def getPlayer(name: String): Option[Player] = Option(server.getPlayer(name)).map(_.toPlayer)
+
+      override def getPlayer(id: UUID): Option[Player] = Option(server.getPlayer(id)).map(_.toPlayer)
+    }
 
   }
 

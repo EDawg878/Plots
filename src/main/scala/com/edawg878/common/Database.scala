@@ -6,10 +6,9 @@ import java.util.UUID
 import java.util.logging.{Level, Logger}
 
 import com.edawg878.common.Conversions._
-import com.edawg878.common.DateUnit.Zones
 import com.edawg878.common.Group.Group
 import com.edawg878.common.Server.{Player, Server}
-import com.edawg878.common.DateUnit.Implicits.standard
+import com.edawg878.common.DateUnit.Implicits.{standardUnits, defaultZone, RichInstant}
 import net.md_5.bungee.api.ChatColor
 import reactivemongo.api.MongoDriver
 import reactivemongo.api.collections.default.BSONCollection
@@ -55,25 +54,25 @@ case class PlayerData(id: UUID,
     this(id = p.getUniqueId, name = p.getName)
 
   def displayPlayTime(online: Boolean): String = {
-    val time = DateUnit.format(playTime.duration(online)).mkString
-    val first = playTime.firstLogin.atZone(Zones.Default).toLocalDate.toString
-    info"[$name] has played for [$time] since [$first]"
+    val time = DateUnit.format(playTime.duration(online)).mkString(" ")
+    val first = playTime.firstLogin.toLocalDate.toString
+    info"$name has played for $time since $first"
   }
 
-  def displayTier: String = info"[$name] has tier [$tier]"
+  def displayTier: String = info"$name has tier $tier"
 
   def displayCredits: String = {
-    if (voteCredits == 0) info"[$name] has no credits"
-    else if (voteCredits == 1) info"[$name] has [1] credit"
-    else info"[$name] has [$voteCredits] credits"
+    if (voteCredits == 0) info"$name has no credits"
+    else if (voteCredits == 1) info"$name has $voteCredits credit"
+    else info"$name has $voteCredits credits"
   }
 
   def displayPerks: String = {
-    if (perks.isEmpty) info"[$name] has no perks"
-    else info"[$name] has the following perks: ${perks.mkStringPretty}"
+    if (perks.isEmpty) info"$name has no perks"
+    else info"$name has the following perks: ${perks.mkString(", ")}"
   }
 
-  def displayGroup = info"[$name] is in group [${group.name}]"
+  def displayGroup: String = info"$name is in group ${group.name}"
 
 }
 
@@ -87,9 +86,9 @@ trait PlayerRepository {
   def traverseById(ids: UUID*): Future[Seq[PlayerData]] = Future.traverse(ids)(find)
 
   def traverseByName(names: String*): Future[Seq[PlayerData]] = Future.traverse(names) { name =>
-    search(name) map { seq =>
-      if (seq.isEmpty) throw new PlayerNotFound(name)
-      else seq.head
+    search(name) map {
+      case Nil => throw new PlayerNotFound(name)
+      case seq => seq.head
     }
   }
 

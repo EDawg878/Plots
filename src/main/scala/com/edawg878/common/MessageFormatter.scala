@@ -33,7 +33,7 @@ object MessageFormatter {
 
   private def colorizeErr(str: String): String = Color.Error + str
 
-  implicit class Formatter(val sc: StringContext) extends AnyVal {
+  implicit class Formatter(sc: StringContext) {
 
     def fmt(args: Any*): MessageFormat = {
       val key = sc.parts.mkString
@@ -41,14 +41,15 @@ object MessageFormatter {
     }
 
     def info(args: Any*): String =
-      sc.standardInterpolator(colorizeInfo, args)
+      sc.standardInterpolator(identity, args.map(x => Color.Secondary + x + Color.Primary))
 
     def err(args: Any*): String =
-      sc.standardInterpolator(colorizeErr, args)
+      Color.Error + sc.standardInterpolator(identity, args)
 
   }
 
-  implicit class RichMessageFormat(val self: MessageFormat) extends AnyVal {
+  /*
+  implicit class RichMessageFormat(self: MessageFormat) {
 
     private def fmt(args: Seq[Any]): String =
       self.format(args.map(_.asInstanceOf[Object]).toArray)
@@ -60,5 +61,6 @@ object MessageFormatter {
       colorizeErr(fmt(args))
 
   }
+  */
 
 }

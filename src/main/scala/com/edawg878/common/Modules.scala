@@ -32,8 +32,8 @@ object Modules {
     lazy val groupCommand = wire[GroupCommand].asInstanceOf[CommandExecutor]
     lazy val playTimeCommand = wire[PlayTimeCommand].asInstanceOf[CommandExecutor]
 
-    override def plugin: Plugin = bukkitPlugin
-    override def server: Server = bukkitPlugin.getServer
+    override def plugin: Plugin = bukkitPlugin.toPlugin
+    override def server: Server = bukkitPlugin.getServer.toServer
 
     def bukkitPlugin: org.bukkit.plugin.Plugin
 
@@ -43,9 +43,9 @@ object Modules {
 
     import com.edawg878.bungee.BungeeImpl._
 
-    lazy val server: Server.Server = bungeePlugin.getProxy
+    lazy val server: Server.Server = bungeePlugin.getProxy.toServer
 
-    override def plugin: Plugin = bungeePlugin
+    override def plugin: Plugin = bungeePlugin.toPlugin
 
     def bungeePlugin: net.md_5.bungee.api.plugin.Plugin
 

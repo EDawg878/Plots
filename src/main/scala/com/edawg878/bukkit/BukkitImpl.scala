@@ -55,42 +55,51 @@ object BukkitImpl {
 
   }
 
-  implicit class BukkitPlugin(val plugin: org.bukkit.plugin.Plugin) extends Plugin {
+  implicit class BukkitPlugin(val plugin: org.bukkit.plugin.Plugin) {
 
-    override def getDataFolder: Path = plugin.getDataFolder.toPath
+    def toPlugin: Plugin = new Plugin {
+      override def getDataFolder: Path = plugin.getDataFolder.toPath
 
-    override def getLogger: Logger = plugin.getLogger
+      override def getLogger: Logger = plugin.getLogger
 
-    override def getResource(name: String): InputStream = plugin.getResource(name)
-  }
-
-  implicit class BukkitConsole(val console: org.bukkit.command.CommandSender) extends Console {
-
-    override def sendMessage(message: String): Unit = console.sendMessage(message)
-
-    override def hasPermission(permission: String): Boolean = console.hasPermission(permission)
+      override def getResource(name: String): InputStream = plugin.getResource(name)
+    }
 
   }
 
-  implicit class BukkitPlayer(val player: org.bukkit.entity.Player) extends Player {
+  implicit class BukkitConsole(val console: org.bukkit.command.CommandSender) {
 
-    override def getName: String = player.getName
+    def toConsole: Console = new Console {
+      override def sendMessage(message: String): Unit = console.sendMessage(message)
 
-    override def getUniqueId: UUID = player.getUniqueId
-
-    override def sendMessage(message: String): Unit = player.sendMessage(message)
-
-    override def hasPermission(permission: String): Boolean = player.hasPermission(permission)
-
-    override def getDisplayName: String = player.getDisplayName
+      override def hasPermission(permission: String): Boolean = console.hasPermission(permission)
+    }
 
   }
 
-  implicit class BukkitServer(val server: org.bukkit.Server) extends Server {
+  implicit class BukkitPlayer(val player: org.bukkit.entity.Player) {
 
-    override def getPlayer(name: String): Option[Player] = Option(server.getPlayer(name))
+    def toPlayer: Player = new Player {
+      override def getName: String = player.getName
 
-    override def getPlayer(id: UUID): Option[Player] = Option(server.getPlayer(id))
+      override def getUniqueId: UUID = player.getUniqueId
+
+      override def sendMessage(message: String): Unit = player.sendMessage(message)
+
+      override def hasPermission(permission: String): Boolean = player.hasPermission(permission)
+
+      override def getDisplayName: String = player.getDisplayName
+    }
+
+  }
+
+  implicit class BukkitServer(val server: org.bukkit.Server) {
+
+    def toServer: Server = new Server {
+      override def getPlayer(name: String): Option[Player] = Option(server.getPlayer(name)).map(_.toPlayer)
+
+      override def getPlayer(id: UUID): Option[Player] = Option(server.getPlayer(id)).map(_.toPlayer)
+    }
 
   }
 
