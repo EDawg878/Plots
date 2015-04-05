@@ -31,7 +31,7 @@ object Credit {
       } text "number of credits to add/subtract/set"
     }
 
-    override def handle(sender: CommandSender, c: Config): Unit =
+    override def handle(sender: CommandSender, c: Config): Unit = {
       onComplete(sender, c.data) { data =>
         c.fn match {
           case Add | Subtract | Set =>
@@ -41,6 +41,7 @@ object Credit {
           case Show => sender.sendMessage(data.displayCredits)
         }
       }
+    }
 
   }
 

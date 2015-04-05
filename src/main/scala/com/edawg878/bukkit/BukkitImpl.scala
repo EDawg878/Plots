@@ -5,10 +5,8 @@ import java.nio.file.Path
 import java.util.UUID
 import java.util.logging.Logger
 
-import com.edawg878.common.Server
 import com.edawg878.common.Server._
 import org.bukkit.configuration.file._
-import org.bukkit.entity.Player
 
 import scala.collection.JavaConverters._
 
@@ -74,7 +72,7 @@ object BukkitImpl {
 
   }
 
-  implicit class BukkitPlayer(val player: Player) extends Server.Player {
+  implicit class BukkitPlayer(val player: org.bukkit.entity.Player) extends Player {
 
     override def getName: String = player.getName
 
@@ -85,6 +83,14 @@ object BukkitImpl {
     override def hasPermission(permission: String): Boolean = player.hasPermission(permission)
 
     override def getDisplayName: String = player.getDisplayName
+
+  }
+
+  implicit class BukkitServer(val server: org.bukkit.Server) extends Server {
+
+    override def getPlayer(name: String): Option[Player] = Option(server.getPlayer(name))
+
+    override def getPlayer(id: UUID): Option[Player] = Option(server.getPlayer(id))
 
   }
 

@@ -4,8 +4,8 @@ import akka.actor.{ActorSystem, Props}
 import akka.cluster.Cluster
 import com.edawg878.bukkit.BukkitImpl._
 import com.edawg878.common.Modules.BukkitModule
-import com.edawg878.common.{Publisher, Subscriber}
-import org.bukkit.event.player.PlayerJoinEvent
+import com.edawg878.common.{PlayerData, Publisher, Subscriber}
+import org.bukkit.event.player.{PlayerQuitEvent, PlayerJoinEvent}
 import org.bukkit.event.{EventHandler, Listener}
 import org.bukkit.plugin.java.JavaPlugin
 
@@ -42,14 +42,26 @@ class BukkitMain extends JavaPlugin with Listener {
     getCommand("perk").setExecutor(perkCommand)
     getCommand("credit").setExecutor(creditCommand)
     getCommand("group").setExecutor(groupCommand)
+    getCommand("playtime").setExecutor(playTimeCommand)
   }
 
   @EventHandler
   def onJoin(event: PlayerJoinEvent) {
     val player = event.getPlayer
-    db.find(player) onComplete {
-      case Success(v) => getLogger.info("success!")
-      case Failure(t) => { getLogger.info(s"failure! ${t.getMessage}"); db.insert(player) }
+    db.find(player) onSuccess {
+      case data =>
+        val updated = data.copy(playTime = data.playTime.login)
+        db.save(updated)
+    }
+  }
+
+  @EventHandler
+  def onQuit(event: PlayerQuitEvent): Unit = {
+    val player = event.getPlayer
+    db.find(player) onSuccess {
+      case data =>
+        val updated = data.copy(playTime = data.playTime.logout)
+        db.save(updated)
     }
   }
 

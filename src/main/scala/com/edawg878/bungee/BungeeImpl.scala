@@ -6,6 +6,7 @@ import java.util.UUID
 import java.util.logging.Logger
 
 import com.edawg878.common.Server._
+import net.md_5.bungee.api.ProxyServer
 import net.md_5.bungee.api.chat.TextComponent
 import net.md_5.bungee.api.connection.ProxiedPlayer
 import net.md_5.bungee.config.{ConfigurationProvider, YamlConfiguration}
@@ -74,6 +75,14 @@ object BungeeImpl {
     override def hasPermission(permission: String): Boolean = player.hasPermission(permission)
 
     override def getDisplayName: String = player.getDisplayName
+
+  }
+
+  implicit class BungeeServer(val server: ProxyServer) extends Server {
+
+    override def getPlayer(name: String): Option[Player] = Option(server.getPlayer(name))
+
+    override def getPlayer(id: UUID): Option[Player] = Option(server.getPlayer(id))
 
   }
 

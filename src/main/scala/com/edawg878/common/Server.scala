@@ -84,4 +84,16 @@ object Server {
 
   }
 
+  trait Server {
+
+    def getPlayer(name: String): Option[Player]
+
+    def getPlayer(id: UUID): Option[Player]
+
+    def isOnline(name: String): Boolean = getPlayer(name).isDefined
+
+    def isOnline(id: UUID): Boolean = getPlayer(id).isDefined
+
+  }
+
 }

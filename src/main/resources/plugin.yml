@@ -6,3 +6,4 @@ commands:
   perk: {}
   credit: {}
   group: {}
+  playTime: {}

@@ -1,6 +1,7 @@
 package com.edawg878.common
 
 import com.edawg878.common.Group.Group
+import com.edawg878.common.MessageFormatter.Color
 import scopt.ConsoleHandler.ConsoleHandler
 import scopt.{Read, CustomOptionParser}
 
@@ -21,27 +22,16 @@ object Command {
 
     def handle(sender: S, config: C): Unit
 
-    def run(sender: S, args: Array[String]): Boolean = {
-      parser.parse(args, default)(sender) match {
-        case Some(c) =>
-          handle(sender, c)
-          true
-        case None =>
-          false
-      }
-    }
+    def run(sender: S, args: Array[String]): Boolean =
+      parser.parse(args, default)(sender).map(handle(sender, _)).isDefined
 
   }
 
   trait ErrorConverter[S] {
 
-    def onComplete[A](sender: S, a: Future[A])(f: A => Unit): Unit = {
-      a.onComplete {
-        case Success(result) =>
-          f(result)
-        case Failure(t) =>
-          parser.reportError(t.getMessage)(sender)
-      }
+    def onComplete[A](sender: S, a: Future[A])(f: A => Unit): Unit = a.onComplete {
+      case Success(v) => f(v)
+      case Failure(t) => parser.reportError(t.getMessage)(sender)
     }
 
     def parser: CustomOptionParser[_, S]
@@ -53,12 +43,13 @@ object Command {
 
     val handler: ConsoleHandler[CommandSender] = new ConsoleHandler[CommandSender] {
 
-      override def print(sender: CommandSender, msg: String): Unit = sender.sendMessage(msg)
+      override def print(sender: CommandSender, msg: String): Unit =
+        sender.sendMessage(msg)
 
       override def exit(): Unit = {}
 
       override def printError(sender: CommandSender, msg: String): Unit =
-        sender.sendMessage(MessageFormatter.ERROR + msg)
+        sender.sendMessage(Color.Error + msg)
 
     }
 
@@ -87,7 +78,7 @@ object Command {
       override def exit(): Unit = {}
 
       override def printError(sender: CommandSender, msg: String): Unit =
-        sender.sendMessage(TextComponent.fromLegacyText(MessageFormatter.ERROR + msg): _*)
+        sender.sendMessage(TextComponent.fromLegacyText(Color.Error + msg): _*)
     }
 
     abstract class BungeeCommand[C](cmd: String) extends Command(cmd) with ConfigCommand[C, CommandSender] {
@@ -112,14 +103,13 @@ object Command {
 
     val Show: IntOp = (x, _) => x
 
-    implicit val reader: Read[IntOp] =
-      Read.reads {
-        case "+" => Add
-        case "-" => Subtract
-        case "set" => Set
-        case "show" => Show
-        case _ => throw new IllegalOperation
-      }
+    implicit val reader: Read[IntOp] = Read.reads {
+      case "+" => Add
+      case "-" => Subtract
+      case "set" => Set
+      case "show" => Show
+      case _ => throw new IllegalOperation
+    }
 
   }
 
@@ -135,14 +125,13 @@ object Command {
 
     val Clear: PerkOp = (_, _) => Set.empty
 
-    implicit val reader: Read[PerkOp] =
-      Read.reads {
-        case "+" => Add
-        case "-" => Subtract
-        case "show" => Show
-        case "clear" => Clear
-        case _ => throw new IllegalOperation
-      }
+    implicit val reader: Read[PerkOp] = Read.reads {
+      case "+" => Add
+      case "-" => Subtract
+      case "show" => Show
+      case "clear" => Clear
+      case _ => throw new IllegalOperation
+    }
 
   }
 
@@ -158,14 +147,13 @@ object Command {
 
     val Show: GroupOp = (a, _) => a
 
-    implicit val reader: Read[GroupOp] =
-      Read.reads {
-        case "promote" => Promote
-        case "demote" => Demote
-        case "set" => Set
-        case "show" => Show
-        case _ => throw new IllegalOperation
-      }
+    implicit val reader: Read[GroupOp] = Read.reads {
+      case "promote" => Promote
+      case "demote" => Demote
+      case "set" => Set
+      case "show" => Show
+      case _ => throw new IllegalOperation
+    }
 
   }
 

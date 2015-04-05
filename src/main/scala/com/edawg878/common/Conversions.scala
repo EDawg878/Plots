@@ -1,5 +1,7 @@
 package com.edawg878.common
 
+import com.edawg878.common.MessageFormatter.Color
+
 /**
  * @author EDawg878 <EDawg878@gmail.com>
  */
@@ -7,13 +9,12 @@ object Conversions {
 
   implicit class RichTraversable[A](val self: Traversable[A]) extends AnyVal {
 
-    def mkStringPretty: String = self.mkString(MessageFormatter.SECONDARY,
-      MessageFormatter.PRIMARY + ", " + MessageFormatter.SECONDARY,
-      MessageFormatter.PRIMARY)
+    def mkStringPretty: String =
+      self.mkString(Color.Secondary, Color.Primary + ", " + Color.Secondary, Color.Primary)
 
-    def toOption: Option[Traversable[A]] = {
-      if (self.isEmpty) None
-      else Some(self)
+    def toOption: Option[Traversable[A]] = self match {
+      case Nil => None
+      case v => Some(v)
     }
 
   }

@@ -12,18 +12,16 @@ object Group {
     val rank: Int
     val isStaff = false
     val color: ChatColor
-    def prefix = s"[$name]"
-    def node = s"group.${name.toLowerCase}"
+    def prefix: String = s"[$name]"
+    def node: String = s"group.${name.toLowerCase}"
     def promote: Group = values.find(_ > this) getOrElse this
     def demote: Group = values.reverse.find(_ < this) getOrElse this
     def compare(that: Group) = this.rank compareTo that.rank
   }
 
-  def withName(name: String, ignoreCase: Boolean = false): Option[Group] = {
-    values.find(group =>
-      if (ignoreCase) group.name.toLowerCase == name.toLowerCase
-      else group.name == name
-    )
+  def withName(name: String, ignoreCase: Boolean = false): Option[Group] = values.find { group =>
+    if (ignoreCase) group.name.toLowerCase == name.toLowerCase
+    else group.name == name
   }
 
   trait Staff extends Group {

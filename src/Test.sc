@@ -1,8 +1,5 @@
 import scala.collection.generic.Sorted
 
-val vals = Vector(0,10,30,50,100).sorted
+val nonEmpty: Seq[String] = Vector("a","b","c","d")
 
-def promote(num: Int): Int = vals.find(x => x > num) getOrElse num
-def demote(num: Int): Int = vals.reverse.find(x => x < num) getOrElse num
-
-demote(0)
+val empty: Seq[String] = Vector()

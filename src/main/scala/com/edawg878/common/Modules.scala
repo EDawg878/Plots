@@ -1,6 +1,7 @@
 package com.edawg878.common
 
 import com.edawg878.bukkit.commands.Group.GroupCommand
+import com.edawg878.bukkit.commands.PlayTime.PlayTimeCommand
 import com.softwaremill.macwire.Macwire
 import com.edawg878.common.Server._
 
@@ -14,6 +15,7 @@ object Modules {
     lazy val db: MongoPlayerRepository = wire[MongoPlayerRepository]
 
     def plugin: Plugin
+    def server: Server
   }
 
   trait BukkitModule extends CommonModule {
@@ -24,14 +26,14 @@ object Modules {
     import com.edawg878.bukkit.commands.Tier.TierCommand
     import org.bukkit.command.CommandExecutor
 
-    lazy val server = bukkitPlugin.getServer
-
     lazy val tierCommand = wire[TierCommand].asInstanceOf[CommandExecutor]
     lazy val perkCommand = wire[PerkCommand].asInstanceOf[CommandExecutor]
     lazy val creditCommand = wire[CreditCommand].asInstanceOf[CommandExecutor]
     lazy val groupCommand = wire[GroupCommand].asInstanceOf[CommandExecutor]
+    lazy val playTimeCommand = wire[PlayTimeCommand].asInstanceOf[CommandExecutor]
 
-    override def plugin = bukkitPlugin
+    override def plugin: Plugin = bukkitPlugin
+    override def server: Server = bukkitPlugin.getServer
 
     def bukkitPlugin: org.bukkit.plugin.Plugin
 
@@ -41,9 +43,9 @@ object Modules {
 
     import com.edawg878.bungee.BungeeImpl._
 
-    lazy val server = bungeePlugin.getProxy
+    lazy val server: Server.Server = bungeePlugin.getProxy
 
-    override def plugin = bungeePlugin
+    override def plugin: Plugin = bungeePlugin
 
     def bungeePlugin: net.md_5.bungee.api.plugin.Plugin
 

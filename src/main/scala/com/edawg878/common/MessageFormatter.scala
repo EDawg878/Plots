@@ -13,23 +13,25 @@ object MessageFormatter {
 
   val cache = mutable.Map[String, MessageFormat]()
 
-  val ERROR = ChatColor.RED.toString
-  val PRIMARY = ChatColor.GOLD.toString
-  val SECONDARY = ChatColor.RED.toString
+  object Color {
+    val Error = ChatColor.RED.toString
+    val Primary = ChatColor.GOLD.toString
+    val Secondary = ChatColor.RED.toString
+  }
 
   private def colorizeInfo(str: String): String = {
-    val b = new mutable.StringBuilder(PRIMARY)
+    val b = new mutable.StringBuilder(Color.Primary)
 
     str foreach {
-      case '[' => b append SECONDARY
-      case ']' => b append PRIMARY
+      case '[' => b append Color.Secondary
+      case ']' => b append Color.Primary
       case c => b append c
     }
 
     b.toString()
   }
 
-  private def colorizeErr(str: String): String = ERROR + str
+  private def colorizeErr(str: String): String = Color.Error + str
 
   implicit class Formatter(val sc: StringContext) extends AnyVal {
 
