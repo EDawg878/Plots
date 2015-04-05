@@ -12,9 +12,9 @@ object Conversions {
     def mkStringPretty: String =
       self.mkString(Color.Secondary, Color.Primary + ", " + Color.Secondary, Color.Primary)
 
-    def toOption: Option[Traversable[A]] = self match {
-      case Nil => None
-      case v => Some(v)
+    def toOption: Option[Traversable[A]] = {
+      if (self.isEmpty) None
+      else Some(self)
     }
 
   }

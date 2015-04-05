@@ -87,9 +87,9 @@ trait PlayerRepository {
   def traverseById(ids: UUID*): Future[Seq[PlayerData]] = Future.traverse(ids)(find)
 
   def traverseByName(names: String*): Future[Seq[PlayerData]] = Future.traverse(names) { name =>
-    search(name) map {
-      case Nil => throw new PlayerNotFound(name)
-      case seq => seq.head
+    search(name) map { seq =>
+      if (seq.isEmpty) throw new PlayerNotFound(name)
+      else seq.head
     }
   }
 
@@ -170,7 +170,8 @@ trait BSONHandlers {
         "perks" -> perks.toOption,
         "tier" -> tier,
         "plotLimit" -> plotLimit,
-        "voteCredits" -> voteCredits,
+        "voteCredits" -> voteCredits
+      ) ++ BSONDocument(
         "firstLogin" -> playTime.firstLogin,
         "lastSeen" -> playTime.lastSeen,
         "playTime" -> playTime.amount
