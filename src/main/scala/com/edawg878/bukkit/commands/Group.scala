@@ -1,6 +1,7 @@
 package com.edawg878.bukkit.commands
 
 import com.edawg878.common.Command.Bukkit.{BukkitOptionParser, BukkitCommand}
+import com.edawg878.common.Command.CommandMeta
 import com.edawg878.common.Command.GroupOps._
 import com.edawg878.common.Group._
 import com.edawg878.common.Readers.PlayerDataReader
@@ -16,15 +17,17 @@ import scala.concurrent.Future
  */
 object Group {
 
-  case class Config(fn: GroupOp, data: Future[PlayerData], group: Group)
+  case class Config(op: GroupOp, data: Future[PlayerData], group: Group)
 
   class GroupCommand(val db: PlayerRepository) extends BukkitCommand[Config] with PlayerDataReader {
 
-    override val default: Config = Config(fn = Show, data = null, group = Default)
+    override def meta = CommandMeta(cmd = "group", perm = None)
 
-    override val parser: CustomOptionParser[Config, CommandSender] = new BukkitOptionParser[Config]("/group") {
+    override val default = Config(op = Show, data = null, group = Default)
+
+    override val parser = new BukkitOptionParser[Config]("/group") {
       arg[GroupOp]("<operation>") required() action { (x,c) =>
-        c.copy(fn = x)
+        c.copy(op = x)
       } text "operations: promote, demote, set, show"
       arg[Future[PlayerData]]("<player>") required() action { (x, c) =>
         c.copy(data = x)
@@ -34,16 +37,15 @@ object Group {
       } text "group to set"
     }
 
-    override def handle(sender: CommandSender, c: Config): Unit =
-      onComplete(sender, c.data) { data =>
-        c.fn match {
-          case Promote | Demote =>
-            val updated = data.copy(group = c.fn(data.group, c.group))
-            sender.sendMessage(updated.displayGroup)
-            db.save(updated)
-          case Show => sender.sendMessage(data.displayGroup)
-        }
+    override def handle(sender: CommandSender, c: Config): Unit = onComplete(sender, c.data) { data =>
+      c.op match {
+        case Promote | Demote | Set =>
+          val updated = data.copy(group = c.op.using(data.group, c.group))
+          sender.sendMessage(updated.displayGroup)
+          db.save(updated)
+        case Show => sender.sendMessage(data.displayGroup)
       }
+    }
 
   }
 

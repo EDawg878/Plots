@@ -2,6 +2,7 @@ package com.edawg878.common
 
 import com.edawg878.bukkit.commands.Group.GroupCommand
 import com.edawg878.bukkit.commands.PlayTime.PlayTimeCommand
+import com.edawg878.bukkit.commands.Seen.SeenCommand
 import com.softwaremill.macwire.Macwire
 import com.edawg878.common.Server._
 
@@ -26,11 +27,12 @@ object Modules {
     import com.edawg878.bukkit.commands.Tier.TierCommand
     import org.bukkit.command.CommandExecutor
 
-    lazy val tierCommand = wire[TierCommand].asInstanceOf[CommandExecutor]
-    lazy val perkCommand = wire[PerkCommand].asInstanceOf[CommandExecutor]
-    lazy val creditCommand = wire[CreditCommand].asInstanceOf[CommandExecutor]
-    lazy val groupCommand = wire[GroupCommand].asInstanceOf[CommandExecutor]
-    lazy val playTimeCommand = wire[PlayTimeCommand].asInstanceOf[CommandExecutor]
+    lazy val tierCommand = wire[TierCommand]
+    lazy val perkCommand = wire[PerkCommand]
+    lazy val creditCommand = wire[CreditCommand]
+    lazy val groupCommand = wire[GroupCommand]
+    lazy val playTimeCommand = wire[PlayTimeCommand]
+    lazy val seenCommand = wire[SeenCommand]
 
     override def plugin: Plugin = bukkitPlugin.toPlugin
     override def server: Server = bukkitPlugin.getServer.toServer

@@ -1,6 +1,7 @@
 package com.edawg878.bukkit.commands
 
 import com.edawg878.common.Command.Bukkit.{BukkitOptionParser, BukkitCommand}
+import com.edawg878.common.Command.CommandMeta
 import com.edawg878.common.Command.PerkOps._
 import com.edawg878.common.Readers.PlayerDataReader
 import com.edawg878.common.{PlayerData, PlayerRepository}
@@ -16,6 +17,8 @@ object Perk {
   case class Config(fn: PerkOp, data: Future[PlayerData], perk: String)
 
   class PerkCommand(val db: PlayerRepository) extends BukkitCommand[Config] with PlayerDataReader {
+
+    override def meta = CommandMeta(cmd = "perk", perm = None)
 
     override val default = Config(fn = Show, data = null, perk = "")
 
@@ -37,16 +40,16 @@ object Perk {
       })
     }
 
-    override def handle(sender: CommandSender, c: Config): Unit =
-      onComplete(sender, c.data) { data =>
-        c.fn match {
-          case Add | Subtract | Clear =>
-            val updated = data.copy(perks = c.fn(data.perks, c.perk))
-            sender.sendMessage(updated.displayPerks)
-            db.save(updated)
-          case Show => sender.sendMessage(data.displayPerks)
-        }
+    override def handle(sender: CommandSender, c: Config): Unit = onComplete(sender, c.data) { data =>
+      c.fn match {
+        case Add | Subtract | Clear =>
+          val updated = data.copy(perks = c.fn.using(data.perks, c.perk))
+          sender.sendMessage(updated.displayPerks)
+          db.save(updated)
+        case Show => sender.sendMessage(data.displayPerks)
       }
+    }
+
   }
 
 }

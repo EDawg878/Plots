@@ -7,3 +7,4 @@ commands:
   credit: {}
   group: {}
   playTime: {}
+  seen: {}

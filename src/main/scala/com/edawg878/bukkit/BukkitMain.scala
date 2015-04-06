@@ -3,14 +3,18 @@ package com.edawg878.bukkit
 import akka.actor.{ActorSystem, Props}
 import akka.cluster.Cluster
 import com.edawg878.bukkit.BukkitImpl._
+import com.edawg878.common.Command.Command
 import com.edawg878.common.Modules.BukkitModule
 import com.edawg878.common.{PlayerData, Publisher, Subscriber}
+import org.bukkit.command
+import org.bukkit.command.{CommandSender, CommandExecutor}
 import org.bukkit.event.player.{PlayerQuitEvent, PlayerJoinEvent}
 import org.bukkit.event.{EventHandler, Listener}
 import org.bukkit.plugin.java.JavaPlugin
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.{Failure, Success}
+import scala.collection.JavaConverters._
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
@@ -22,6 +26,8 @@ class BukkitMain extends JavaPlugin with Listener {
   }
 
   import bukkitModule._
+
+  val commands = Seq(tierCommand, perkCommand, creditCommand, groupCommand, playTimeCommand, seenCommand)
 
   override def onLoad() {
     db.ensureIndexes()
@@ -36,13 +42,26 @@ class BukkitMain extends JavaPlugin with Listener {
     }
   }
 
+  def registerCommands(): Unit = {
+    def register(command: Command[CommandSender]): Unit = {
+      val meta = command.meta
+      val exec = new CommandExecutor {
+        override def onCommand(sender: CommandSender, bcmd: org.bukkit.command.Command, l: String, args: Array[String]): Boolean = {
+          command.execute(sender, args)
+          true
+        }
+      }
+      val bc = getCommand(meta.cmd)
+      meta.perm.map(bc.setPermission)
+      bc.setAliases(meta.aliases.asJava)
+      bc.setExecutor(exec)
+    }
+    commands.foreach(register)
+  }
+
   override def onEnable() {
     getServer.getPluginManager.registerEvents(this, this)
-    getCommand("tier").setExecutor(tierCommand)
-    getCommand("perk").setExecutor(perkCommand)
-    getCommand("credit").setExecutor(creditCommand)
-    getCommand("group").setExecutor(groupCommand)
-    getCommand("playtime").setExecutor(playTimeCommand)
+    registerCommands()
   }
 
   @EventHandler

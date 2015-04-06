@@ -61,7 +61,7 @@ object DateUnit {
     implicit class RichInstant(time: Instant) {
       def toLocalDate(implicit zone: ZoneId): LocalDate = time.atZone(zone).toLocalDate
       def toLocalDateTime(implicit zone: ZoneId): LocalDateTime = time.atZone(zone).toLocalDateTime
-      def toLocalTIme(implicit zone: ZoneId): LocalTime = time.atZone(zone).toLocalTime
+      def toLocalTime(implicit zone: ZoneId): LocalTime = time.atZone(zone).toLocalTime
     }
   }
 

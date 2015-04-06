@@ -2,6 +2,8 @@ package com.edawg878.common
 
 import com.edawg878.common.Group.Group
 import com.edawg878.common.MessageFormatter.Color
+import com.edawg878.common.Readers.PlayerDataReader
+import org.bukkit.command.CommandSender
 import scopt.ConsoleHandler.ConsoleHandler
 import scopt.{Read, CustomOptionParser}
 
@@ -22,7 +24,7 @@ object Command {
 
     def handle(sender: S, config: C): Unit
 
-    def run(sender: S, args: Array[String]): Boolean =
+    def run(sender: S, args: Seq[String]): Boolean =
       parser.parse(args, default)(sender).map(handle(sender, _)).isDefined
 
   }
@@ -37,11 +39,40 @@ object Command {
     def parser: CustomOptionParser[_, S]
   }
 
+  case class CommandMeta(cmd: String, perm: Option[String], aliases: String*)
+
+  trait Command[S] {
+
+    def meta: CommandMeta
+
+    def execute(sender: S, args: Seq[String]): Unit
+
+  }
+
+  abstract class BaseCommand[C, S] extends Command[S] with ConfigCommand[C,S] {
+
+    override def execute(sender: S, args: Seq[String]): Unit = run(sender, args)
+
+  }
+
+  case class BasicConfig(data: Future[PlayerData])
+
+  abstract class BasicCommand[S](handler: ConsoleHandler[S]) extends BaseCommand[BasicConfig, S] with PlayerDataReader {
+
+    val default: BasicConfig = BasicConfig(data = null)
+
+    val parser = new CustomOptionParser[BasicConfig, S]("/" + meta.cmd)(handler) {
+      arg[Future[PlayerData]]("<player>") required() action { (x, c) =>
+        c.copy(data = x)
+      } text "player to modify"
+    }
+  }
+
   object Bukkit {
 
-    import org.bukkit.command.{Command, CommandExecutor, CommandSender}
+    import org.bukkit.command.CommandSender
 
-    val handler: ConsoleHandler[CommandSender] = new ConsoleHandler[CommandSender] {
+    val handler = new ConsoleHandler[CommandSender] {
 
       override def print(sender: CommandSender, msg: String): Unit =
         sender.sendMessage(msg)
@@ -50,28 +81,22 @@ object Command {
 
       override def printError(sender: CommandSender, msg: String): Unit =
         sender.sendMessage(Color.Error + msg)
-
     }
 
     class BukkitOptionParser[C](cmd: String) extends CustomOptionParser[C, CommandSender](cmd)(handler)
 
-    abstract class BukkitCommand[C] extends ConfigCommand[C, CommandSender] with CommandExecutor {
+    abstract class BukkitCommand[C] extends BaseCommand[C, CommandSender]
 
-      override def onCommand(sender: CommandSender, command: Command, label: String, args: Array[String]): Boolean = {
-        run(sender, args)
-      }
+    abstract class BasicBukkitCommand extends BasicCommand[CommandSender](handler)
 
-    }
   }
 
   object Bungee {
 
     import net.md_5.bungee.api.CommandSender
     import net.md_5.bungee.api.chat.TextComponent
-    import net.md_5.bungee.api.plugin.Command
 
-    val handler: ConsoleHandler[CommandSender] = new ConsoleHandler[CommandSender] {
-
+    val handler = new ConsoleHandler[CommandSender] {
       override def print(sender: CommandSender, msg: String): Unit =
         sender.sendMessage(TextComponent.fromLegacyText(msg): _*)
 
@@ -81,11 +106,11 @@ object Command {
         sender.sendMessage(TextComponent.fromLegacyText(Color.Error + msg): _*)
     }
 
-    abstract class BungeeCommand[C](cmd: String) extends Command(cmd) with ConfigCommand[C, CommandSender] {
+    class BungeeOptionParser[C](cmd: String) extends CustomOptionParser[C, CommandSender](cmd)(handler)
 
-      override def execute(sender: CommandSender, args: Array[String]): Unit = run(sender, args)
+    abstract class BungeeCommand[C] extends BaseCommand[C, CommandSender]
 
-    }
+    abstract class BasicBukkitCommand extends BasicCommand[CommandSender](handler)
 
   }
 
@@ -93,15 +118,22 @@ object Command {
 
   object IntOps {
 
-    type IntOp = (Int, Int) => Int
+    sealed trait IntOp {
+      def using(x: Int, y: Int): Int
+    }
 
-    val Add: IntOp = (x, y) => x + y
-
-    val Subtract: IntOp = (x, y) => x - y
-
-    val Set: IntOp = (_, y) => y
-
-    val Show: IntOp = (x, _) => x
+    case object Add extends IntOp {
+      def using(x: Int, y: Int) = x + y
+    }
+    case object Subtract extends IntOp {
+      def using(x: Int, y: Int) = x - y
+    }
+    case object Set extends IntOp {
+      def using(x: Int, y: Int) = y
+    }
+    case object Show extends IntOp {
+      def using(x: Int, y: Int) = x
+    }
 
     implicit val reader: Read[IntOp] = Read.reads {
       case "+" => Add
@@ -115,15 +147,22 @@ object Command {
 
   object PerkOps {
 
-    type PerkOp = (Set[String], String) => Set[String]
+    sealed trait PerkOp {
+      def using(col: Set[String], str: String): Set[String]
+    }
 
-    val Add: PerkOp = (col, str) => col + str
-
-    val Subtract: PerkOp = (col, str) => col - str
-
-    val Show: PerkOp = (col, _) => col
-
-    val Clear: PerkOp = (_, _) => Set.empty
+    case object Add extends PerkOp {
+      def using(col: Set[String], str: String) = col + str
+    }
+    case object Subtract extends PerkOp {
+      def using(col: Set[String], str: String) = col - str
+    }
+    case object Show extends PerkOp {
+      def using(col: Set[String], str: String) = col
+    }
+    case object Clear extends PerkOp {
+      def using(col: Set[String], str: String) = Set.empty
+    }
 
     implicit val reader: Read[PerkOp] = Read.reads {
       case "+" => Add
@@ -136,16 +175,23 @@ object Command {
   }
 
   object GroupOps {
+    
+    sealed trait GroupOp {
+      def using(a: Group, b: Group): Group
+    }
 
-    type GroupOp = (Group, Group) => Group
-
-    val Promote: GroupOp = (a, _) => a.promote
-
-    val Demote: GroupOp = (a, _) => a.demote
-
-    val Set: GroupOp = (_, b) => b
-
-    val Show: GroupOp = (a, _) => a
+    case object Promote extends GroupOp {
+      def using(a: Group, b: Group) = a.promote
+    }
+    case object Demote extends GroupOp {
+      def using(a: Group, b: Group) = a.demote
+    }
+    case object Set extends GroupOp {
+      def using(a: Group, b: Group) = b
+    }
+    case object Show extends GroupOp {
+      def using(a: Group, b: Group) = a
+    }
 
     implicit val reader: Read[GroupOp] = Read.reads {
       case "promote" => Promote
