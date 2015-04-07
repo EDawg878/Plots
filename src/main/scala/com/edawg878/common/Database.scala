@@ -5,76 +5,18 @@ import java.time.{Duration, Instant}
 import java.util.UUID
 import java.util.logging.{Level, Logger}
 
-import com.edawg878.common.Conversions._
-import com.edawg878.common.Group.Group
-import com.edawg878.common.Server.{Player, Server}
-import com.edawg878.common.DateUnit.Implicits.{standardUnits, defaultZone, RichInstant}
-import net.md_5.bungee.api.ChatColor
+import com.edawg878.common.Server.Player
 import reactivemongo.api.MongoDriver
 import reactivemongo.api.collections.default.BSONCollection
 import reactivemongo.api.indexes.{Index, IndexType}
 import reactivemongo.bson.Subtype.UuidSubtype
 import reactivemongo.bson._
-import com.edawg878.common.MessageFormatter._
+import com.edawg878.common.Color.Formatter
 
 import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
-
-case class PlayTime(firstLogin: Instant = Instant.now(),
-                    lastSeen: Instant = Instant.now(),
-                    amount: Duration = Duration.ZERO) {
-
-  def login: PlayTime = copy(lastSeen = Instant.now())
-
-  def logout: PlayTime = copy(amount = duration(online = true))
-
-  def duration(online: Boolean = false): Duration = {
-    if (online) amount.plus(activity)
-    else amount
-  }
-
-  def activity: Duration = Duration.between(lastSeen, Instant.now())
-
-}
-
-case class PlayerData(id: UUID,
-                      name: String,
-                      usernames: Set[String] = Set.empty,
-                      displayName: Option[String] = None,
-                      group: Group = Group.Default,
-                      perks: Set[String] = Set.empty,
-                      tier: Int = 0,
-                      plotLimit: Int = 1,
-                      voteCredits: Int = 0,
-                      playTime: PlayTime = PlayTime()) {
-
-  def this(p: Player) =
-    this(id = p.getUniqueId, name = p.getName)
-
-  def displayPlayTime(online: Boolean): String = {
-    val time = DateUnit.format(playTime.duration(online)).mkString(" ")
-    val first = playTime.firstLogin.toLocalDate.toString
-    info"$name has played for $time since $first"
-  }
-
-  def displayTier: String = info"$name has tier $tier"
-
-  def displayCredits: String = {
-    if (voteCredits == 0) info"$name has no credits"
-    else if (voteCredits == 1) info"$name has $voteCredits credit"
-    else info"$name has $voteCredits credits"
-  }
-
-  def displayPerks: String = {
-    if (perks.isEmpty) info"$name has no perks"
-    else info"$name has the following perks: ${perks.mkString(", ")}"
-  }
-
-  def displayGroup: String = info"$name is in group ${group.name}"
-
-}
 
 class PlayerNotFound(name: String) extends RuntimeException(s"Player '$name' was not found in the database")
 
@@ -163,10 +105,10 @@ trait BSONHandlers {
         "_id" -> id,
         "name" -> name,
         "lowerName" -> name.toLowerCase,
-        "usernames" -> usernames.toOption,
+        "usernames" -> usernames,
         "displayName" -> displayName,
         "group" -> group,
-        "perks" -> perks.toOption,
+        "perks" -> perks,
         "tier" -> tier,
         "plotLimit" -> plotLimit,
         "voteCredits" -> voteCredits

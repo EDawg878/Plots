@@ -10,6 +10,42 @@ import scala.annotation.tailrec
  */
 object DateUnit {
 
+  val Years = new DateUnit {
+    val singular = "year"
+    val abbreviation = "yr"
+    val millis  = TimeUnit.DAYS.toMillis(365)
+  }
+
+  val Months = new DateUnit {
+    val singular = "month"
+    val abbreviation = "mo"
+    val millis = TimeUnit.DAYS.toMillis(30)
+  }
+
+  val Days = new DateUnit {
+    val singular = "day"
+    val abbreviation = "d"
+    val millis = TimeUnit.DAYS.toMillis(1)
+  }
+
+  val Hours = new DateUnit {
+    val singular = "hour"
+    val abbreviation = "h"
+    val millis = TimeUnit.HOURS.toMillis(1)
+  }
+
+  val Minutes = new DateUnit {
+    val singular = "minute"
+    val abbreviation = "m"
+    val millis = TimeUnit.MINUTES.toMillis(1)
+  }
+
+  val Seconds = new DateUnit {
+    val singular = "second"
+    val abbreviation = "s"
+    val millis = TimeUnit.SECONDS.toMinutes(1)
+  }
+
   sealed trait DateUnit {
     def singular: String
     def plural: String = singular + "s"
@@ -17,52 +53,14 @@ object DateUnit {
     val millis: Long
   }
 
-  case object Years extends DateUnit {
-    val singular: String = "year"
-    val abbreviation: String = "yr"
-    val millis: Long = TimeUnit.DAYS.toMillis(365)
-  }
-
-  case object Months extends DateUnit {
-    val singular: String = "month"
-    val abbreviation: String = "mo"
-    val millis: Long = TimeUnit.DAYS.toMillis(30)
-  }
-
-  case object Days extends DateUnit {
-    val singular: String = "day"
-    val abbreviation: String = "d"
-    val millis: Long = TimeUnit.DAYS.toMillis(1)
-  }
-
-  case object Hours extends DateUnit {
-    val singular: String = "hour"
-    val abbreviation: String = "h"
-    val millis: Long = TimeUnit.HOURS.toMillis(1)
-  }
-
-  case object Minutes extends DateUnit {
-    val singular: String = "minute"
-    val abbreviation: String = "m"
-    val millis: Long = TimeUnit.MINUTES.toMillis(1)
-  }
-
-  case object Seconds extends DateUnit {
-    val singular: String = "second"
-    val abbreviation: String = "s"
-    val millis: Long = TimeUnit.SECONDS.toMinutes(1)
-  }
-
   object Implicits {
     // Units should be sorted descending
     implicit val preciseUnits: Seq[DateUnit] = Vector(Years, Months, Days, Hours, Minutes, Seconds)
     implicit val standardUnits: Seq[DateUnit] = Vector(Years, Months, Days, Hours, Minutes)
-    implicit val defaultZone: ZoneId = ZoneId.of("America/Los_Angeles")
-    implicit class RichInstant(time: Instant) {
-      def toLocalDate(implicit zone: ZoneId): LocalDate = time.atZone(zone).toLocalDate
-      def toLocalDateTime(implicit zone: ZoneId): LocalDateTime = time.atZone(zone).toLocalDateTime
-      def toLocalTime(implicit zone: ZoneId): LocalTime = time.atZone(zone).toLocalTime
-    }
+  }
+
+  object TimeZone {
+    val Default: ZoneId = ZoneId.of("America/Los_Angeles")
   }
 
   def format(duration: Duration, abbreviate: Boolean = false)(implicit units: Seq[DateUnit]): Seq[String] = {

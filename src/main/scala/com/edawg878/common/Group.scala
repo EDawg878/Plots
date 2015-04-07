@@ -5,24 +5,25 @@ import net.md_5.bungee.api.ChatColor
 /**
  * @author EDawg878 <EDawg878@gmail.com>
  */
+sealed trait Group extends Ordered[Group] {
+  val name: String
+  val rank: Int
+  val isStaff = false
+  val color: ChatColor
+  def prefix: String = s"[$name]"
+  def node: String = s"group.${name.toLowerCase}"
+  def compare(that: Group) = this.rank compareTo that.rank
+}
+
 object Group {
 
-  sealed trait Group extends Ordered[Group] {
-    val name: String
-    val rank: Int
-    val isStaff = false
-    val color: ChatColor
-    def prefix: String = s"[$name]"
-    def node: String = s"group.${name.toLowerCase}"
-    def promote: Group = values.find(_ > this) getOrElse this
-    def demote: Group = values.reverse.find(_ < this) getOrElse this
-    def compare(that: Group) = this.rank compareTo that.rank
-  }
+  val values: Seq[Group] = Seq(Default, Moderator, Admin, CoOwner, Owner).sorted(Ordering[Group])
+  val valueMap: Map[String, Group] = values.map(g => g.name.toLowerCase -> g).toMap
 
-  def withName(name: String, ignoreCase: Boolean = false): Option[Group] = values.find { group =>
-    if (ignoreCase) group.name.toLowerCase == name.toLowerCase
-    else group.name == name
-  }
+  def withName(name: String): Option[Group] = valueMap.get(name.toLowerCase)
+
+  def promote(group: Group): Group = values.find(_ > group) getOrElse group
+  def demote(group: Group): Group = values.reverse.find(_ < group) getOrElse group
 
   trait Staff extends Group {
     override val isStaff = true
@@ -58,5 +59,4 @@ object Group {
     val color = ChatColor.GOLD
   }
 
-  var values = Vector(Default, Moderator, Admin, CoOwner, Owner).sorted(Ordering[Group])
 }

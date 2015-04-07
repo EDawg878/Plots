@@ -9,42 +9,11 @@ import com.edawg878.common.Server._
 import net.md_5.bungee.api.ProxyServer
 import net.md_5.bungee.api.chat.TextComponent
 import net.md_5.bungee.api.connection.ProxiedPlayer
-import net.md_5.bungee.config.{ConfigurationProvider, YamlConfiguration}
-
-import scala.collection.JavaConverters._
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
  */
-object BungeeImpl {
-
-  val ConfigProvider = ConfigurationProvider.getProvider(classOf[YamlConfiguration])
-
-  private def load(path: Path): net.md_5.bungee.config.Configuration =
-    ConfigProvider.load(path.toFile)
-
-  class BungeeConfiguration(plugin: Plugin, name: String, config: net.md_5.bungee.config.Configuration) extends Configuration(plugin, name) {
-
-    def this(plugin: Plugin, name: String) =
-      this(plugin, name, load(plugin.resolveFile(name)))
-
-    override def reload: Configuration =
-      new BungeeConfiguration(plugin, name, load(path))
-
-    override def save(): Unit = ConfigProvider.save(config, path.toFile)
-
-    override def get(path: String): AnyRef = config.get(path)
-
-    override def getSection(path: String): Configuration =
-      new BungeeConfiguration(plugin, name)
-
-    override def set(path: String, value: AnyVal): Unit = config.set(path, value)
-
-    override def get[T](path: String, default: T): Unit = config.get(path, default)
-
-    override def getKeys: Iterable[String] = config.getKeys.asScala
-
-  }
+object BungeeConversions {
 
   implicit class BungeePlugin(val plugin: net.md_5.bungee.api.plugin.Plugin) {
 

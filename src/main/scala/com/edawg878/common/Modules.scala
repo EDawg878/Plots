@@ -1,8 +1,7 @@
 package com.edawg878.common
 
+import com.edawg878.bukkit.commands.Basic.{SeenCommand, PlayTimeCommand}
 import com.edawg878.bukkit.commands.Group.GroupCommand
-import com.edawg878.bukkit.commands.PlayTime.PlayTimeCommand
-import com.edawg878.bukkit.commands.Seen.SeenCommand
 import com.softwaremill.macwire.Macwire
 import com.edawg878.common.Server._
 
@@ -21,7 +20,7 @@ object Modules {
 
   trait BukkitModule extends CommonModule {
 
-    import com.edawg878.bukkit.BukkitImpl._
+    import com.edawg878.bukkit.BukkitConversions._
     import com.edawg878.bukkit.commands.Credit.CreditCommand
     import com.edawg878.bukkit.commands.Perk.PerkCommand
     import com.edawg878.bukkit.commands.Tier.TierCommand
@@ -43,7 +42,7 @@ object Modules {
 
   trait BungeeModule extends CommonModule {
 
-    import com.edawg878.bungee.BungeeImpl._
+    import com.edawg878.bungee.BungeeConversions._
 
     lazy val server: Server.Server = bungeePlugin.getProxy.toServer
 

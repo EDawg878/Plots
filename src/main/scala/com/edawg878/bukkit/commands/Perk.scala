@@ -1,10 +1,10 @@
 package com.edawg878.bukkit.commands
 
-import com.edawg878.common.Command.Bukkit.{BukkitOptionParser, BukkitCommand}
-import com.edawg878.common.Command.CommandMeta
-import com.edawg878.common.Command.PerkOps._
+import com.edawg878.common.Bukkit.{BukkitOptionParser, BukkitCommand}
+import com.edawg878.common.{PerkOpsReader, CommandMeta, PlayerData, PlayerRepository}
+import com.edawg878.common.PerkOps._
+import com.edawg878.common.Operations.PerkOp
 import com.edawg878.common.Readers.PlayerDataReader
-import com.edawg878.common.{PlayerData, PlayerRepository}
 import org.bukkit.command.CommandSender
 
 import scala.concurrent.Future
@@ -22,7 +22,7 @@ object Perk {
 
     override val default = Config(fn = Show, data = null, perk = "")
 
-    override val parser = new BukkitOptionParser[Config]("/perk") {
+    override val parser = new BukkitOptionParser[Config]("/perk") with PerkOpsReader {
       arg[PerkOp]("<operation>") required() action { (x, c) =>
         c.copy(fn = x)
       } text "operations: +, -, clear, show"

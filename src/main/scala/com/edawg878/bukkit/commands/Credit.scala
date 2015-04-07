@@ -1,10 +1,10 @@
 package com.edawg878.bukkit.commands
 
-import com.edawg878.common.Command.Bukkit.{BukkitOptionParser, BukkitCommand}
-import com.edawg878.common.Command.CommandMeta
-import com.edawg878.common.Command.IntOps._
+import com.edawg878.common.Bukkit.{BukkitOptionParser, BukkitCommand}
+import com.edawg878.common.IntOps._
+import com.edawg878.common.Operations.IntOp
 import com.edawg878.common.Readers.PlayerDataReader
-import com.edawg878.common.{PlayerData, PlayerRepository}
+import com.edawg878.common._
 import org.bukkit.command.CommandSender
 
 import scala.concurrent.Future
@@ -22,7 +22,7 @@ object Credit {
 
     override val default = Config(op = Show, data = null, credits = 1)
 
-    override val parser = new BukkitOptionParser[Config]("/credit") {
+    override val parser = new BukkitOptionParser[Config]("/credit") with IntOpsReader {
       arg[IntOp]("<operation>") required() action { (x, c) =>
         c.copy(op = x)
       } text "operations: +, -, set, show"
@@ -43,7 +43,6 @@ object Credit {
         case Show => sender.sendMessage(data.displayCredits)
       }
     }
-
   }
 
 }

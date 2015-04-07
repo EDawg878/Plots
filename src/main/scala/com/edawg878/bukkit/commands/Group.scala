@@ -1,14 +1,12 @@
 package com.edawg878.bukkit.commands
 
-import com.edawg878.common.Command.Bukkit.{BukkitOptionParser, BukkitCommand}
-import com.edawg878.common.Command.CommandMeta
-import com.edawg878.common.Command.GroupOps._
-import com.edawg878.common.Group._
-import com.edawg878.common.Readers.PlayerDataReader
-import com.edawg878.common.{PlayerRepository, PlayerData}
+import com.edawg878.common.Bukkit.{BukkitOptionParser, BukkitCommand}
+import com.edawg878.common.Operations.GroupOp
+import com.edawg878.common._
+import com.edawg878.common.Group.Default
+import com.edawg878.common.GroupOps._
+import com.edawg878.common.Readers.{GroupReader, PlayerDataReader}
 import org.bukkit.command.CommandSender
-import scopt.CustomOptionParser
-import com.edawg878.common.Readers.Implicits.groupReader
 
 import scala.concurrent.Future
 
@@ -25,7 +23,7 @@ object Group {
 
     override val default = Config(op = Show, data = null, group = Default)
 
-    override val parser = new BukkitOptionParser[Config]("/group") {
+    override val parser = new BukkitOptionParser[Config]("/group") with GroupOpsReader with GroupReader {
       arg[GroupOp]("<operation>") required() action { (x,c) =>
         c.copy(op = x)
       } text "operations: promote, demote, set, show"
@@ -46,7 +44,6 @@ object Group {
         case Show => sender.sendMessage(data.displayGroup)
       }
     }
-
   }
 
 }

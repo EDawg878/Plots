@@ -1,19 +1,16 @@
 package com.edawg878.common
 
-import com.edawg878.common.Group.Group
 import scopt.Read
-
-import scala.util.Try
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
  */
 object Readers {
 
-  object Implicits {
+  trait GroupReader {
 
     implicit val groupReader: Read[Group] =
-      Read.reads(name => Group.withName(name, ignoreCase = true).getOrElse(throw new IllegalArgumentException(s"Invalid group '$name'")))
+      Read.reads(name => Group.withName(name).getOrElse(throw new IllegalArgumentException(s"Invalid group '$name'")))
 
   }
 
