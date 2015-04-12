@@ -6,10 +6,10 @@ import net.md_5.bungee.api.ChatColor
  * @author EDawg878 <EDawg878@gmail.com>
  */
 sealed trait Group extends Ordered[Group] {
-  val name: String
-  val rank: Int
-  val isStaff = false
-  val color: ChatColor
+  def name: String
+  def rank: Int
+  def isStaff = false
+  def color: ChatColor
   def prefix: String = s"[$name]"
   def node: String = s"group.${name.toLowerCase}"
   def compare(that: Group) = this.rank compareTo that.rank

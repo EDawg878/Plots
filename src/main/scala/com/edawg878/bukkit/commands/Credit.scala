@@ -1,6 +1,6 @@
 package com.edawg878.bukkit.commands
 
-import com.edawg878.common.Bukkit.{BukkitOptionParser, BukkitCommand}
+import com.edawg878.common.BukkitCommandHandler.{BukkitOptionParser, BukkitCommand}
 import com.edawg878.common.IntOps._
 import com.edawg878.common.Operations.IntOp
 import com.edawg878.common.Readers.PlayerDataReader
@@ -16,13 +16,14 @@ object Credit {
 
   case class Config(op: IntOp, data: Future[PlayerData], credits: Int)
 
-  class CreditCommand(val db: PlayerRepository) extends BukkitCommand[Config] with PlayerDataReader {
+  class CreditCommand(val db: PlayerRepository) extends BukkitCommand[Config]
+    with PlayerDataReader with IntOpsReader {
 
     override def meta = CommandMeta(cmd = "credit", perm = None)
 
     override val default = Config(op = Show, data = null, credits = 1)
 
-    override val parser = new BukkitOptionParser[Config]("/credit") with IntOpsReader {
+    override val parser = new BukkitOptionParser[Config]("/credit") {
       arg[IntOp]("<operation>") required() action { (x, c) =>
         c.copy(op = x)
       } text "operations: +, -, set, show"

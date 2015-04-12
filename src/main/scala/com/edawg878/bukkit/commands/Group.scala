@@ -1,6 +1,6 @@
 package com.edawg878.bukkit.commands
 
-import com.edawg878.common.Bukkit.{BukkitOptionParser, BukkitCommand}
+import com.edawg878.common.BukkitCommandHandler.{BukkitOptionParser, BukkitCommand}
 import com.edawg878.common.Operations.GroupOp
 import com.edawg878.common._
 import com.edawg878.common.Group.Default
@@ -17,13 +17,14 @@ object Group {
 
   case class Config(op: GroupOp, data: Future[PlayerData], group: Group)
 
-  class GroupCommand(val db: PlayerRepository) extends BukkitCommand[Config] with PlayerDataReader {
+  class GroupCommand(val db: PlayerRepository) extends BukkitCommand[Config]
+    with PlayerDataReader with GroupOpsReader with GroupReader {
 
     override def meta = CommandMeta(cmd = "group", perm = None)
 
     override val default = Config(op = Show, data = null, group = Default)
 
-    override val parser = new BukkitOptionParser[Config]("/group") with GroupOpsReader with GroupReader {
+    override val parser = new BukkitOptionParser[Config]("/group") {
       arg[GroupOp]("<operation>") required() action { (x,c) =>
         c.copy(op = x)
       } text "operations: promote, demote, set, show"

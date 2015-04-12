@@ -1,32 +1,35 @@
 package com.edawg878.bungee
 
-import com.edawg878.common.Server.{Configuration, Plugin}
+import java.nio.file.Path
+
+import com.edawg878.common.Server.{Yaml, YamlValue, ConfigurationSection, Configuration}
 import net.md_5.bungee.config.{YamlConfiguration, ConfigurationProvider}
 import scala.collection.JavaConverters._
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
  */
-class BungeeConfiguration(plugin: Plugin, name: String, config: net.md_5.bungee.config.Configuration)
-  extends Configuration(plugin, name) {
+/*
+object BungeeConfiguration {
 
-  val configProvider = ConfigurationProvider.getProvider(classOf[YamlConfiguration])
+  val provider = ConfigurationProvider.getProvider(classOf[YamlConfiguration])
 
+  def load(configPath: Path): Configuration = new BungeeConfiguration(configPath, provider.load(configPath.toFile))
 
-  def this(plugin: Plugin, name: String) = this(plugin, name, configProvider.load(plugin.resolveFile(name).toFile))
+}
 
-  override def reload: Configuration = new BungeeConfiguration(plugin, name, configProvider.load(path.toFile))
+class BungeeConfiguration private(configPath: Path, config: net.md_5.bungee.config.Configuration)
+  extends Configuration(configPath) {
 
-  override def save(): Unit = configProvider.save(config, path.toFile)
+  override def reload: Configuration = BungeeConfiguration.load(configPath)
 
-  override def get(path: String): AnyRef = config.get(path)
+  override def save(): Unit = BungeeConfiguration.provider.save(config, configPath.toFile)
 
-  override def getSection(path: String): Configuration = new BungeeConfiguration(plugin, name)
+  override def get(path: String): Option[YamlValue] = Option(config.get(path)).flatMap(Yaml.readObj)
 
-  override def set(path: String, value: AnyVal): Unit = config.set(path, value)
-
-  override def get[T](path: String, default: T): Unit = config.get(path, default)
+  override def getSection(path: String): Option[ConfigurationSection] = Option(config.getSection(path)).map(new BungeeConfiguration(configPath, _))
 
   override def getKeys: Iterable[String] = config.getKeys.asScala
 
-}
+  override def set(path: String, yaml: YamlValue): Unit = config.set(path, yaml.value)
+}*/

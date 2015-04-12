@@ -1,6 +1,6 @@
 package com.edawg878.bukkit.commands
 
-import com.edawg878.common.Bukkit.{BukkitOptionParser, BukkitCommand}
+import com.edawg878.common.BukkitCommandHandler.{BukkitOptionParser, BukkitCommand}
 import com.edawg878.common._
 import com.edawg878.common.Operations.IntOp
 import com.edawg878.common.IntOps._
@@ -17,13 +17,14 @@ object Tier {
 
   case class Config(op: IntOp, data: Future[PlayerData], tier: Int)
 
-  class TierCommand(val db: PlayerRepository) extends BukkitCommand[Config] with PlayerDataReader {
+  class TierCommand(val db: PlayerRepository) extends BukkitCommand[Config]
+    with PlayerDataReader with IntOpsReader {
 
     override def meta = CommandMeta(cmd = "tier", perm = None)
 
     override val default = Config(op = Show, data = null, tier = 1)
 
-    override val parser = new BukkitOptionParser[Config]("/tier") with IntOpsReader {
+    override val parser = new BukkitOptionParser[Config]("/tier") {
       arg[IntOp]("<operation>") required() action { (x, c) =>
         c.copy(op = x)
       } text "operations: +, -, set, show"

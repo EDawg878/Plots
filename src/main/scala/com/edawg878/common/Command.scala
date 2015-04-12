@@ -13,9 +13,9 @@ import scala.concurrent.ExecutionContext.Implicits.global
  */
 trait ConfigCommand[C, S] extends ErrorConverter[S] {
 
-  val default: C
+  def default: C
 
-  val parser: CustomOptionParser[C, S]
+  def parser: CustomOptionParser[C, S]
 
   def handle(sender: S, config: C): Unit
 
@@ -63,7 +63,7 @@ abstract class BasicCommand[S](handler: ConsoleHandler[S]) extends BaseCommand[B
   }
 }
 
-object Bukkit {
+object BukkitCommandHandler {
 
   import org.bukkit.command.CommandSender
 
@@ -86,7 +86,7 @@ object Bukkit {
 
 }
 
-object Bungee {
+object BungeeCommandHandler {
 
   import net.md_5.bungee.api.CommandSender
   import net.md_5.bungee.api.chat.TextComponent

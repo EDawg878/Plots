@@ -1,6 +1,6 @@
 package com.edawg878.bukkit.commands
 
-import com.edawg878.common.Bukkit.BasicBukkitCommand
+import com.edawg878.common.BukkitCommandHandler.BasicBukkitCommand
 import com.edawg878.common.{BasicConfig, CommandMeta}
 import com.edawg878.common.Server.Server
 import com.edawg878.common.{DateUnit, PlayerRepository}

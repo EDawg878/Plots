@@ -4,6 +4,7 @@ import com.edawg878.bukkit.commands.Basic.{SeenCommand, PlayTimeCommand}
 import com.edawg878.bukkit.commands.Group.GroupCommand
 import com.softwaremill.macwire.Macwire
 import com.edawg878.common.Server._
+import reactivemongo.api.MongoDriver
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
@@ -11,8 +12,11 @@ import com.edawg878.common.Server._
 object Modules {
 
   trait CommonModule extends Macwire {
-    lazy val logger = plugin.getLogger
-    lazy val db: MongoPlayerRepository = wire[MongoPlayerRepository]
+    lazy val logger = plugin.logger
+    lazy val driver = new MongoDriver
+    lazy val conn = driver.connection(List("localhost"))
+    lazy val db = wire[MongoPlayerRepository]
+    lazy val cdb = wire[MongoConfigRepository]
 
     def plugin: Plugin
     def server: Server

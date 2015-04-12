@@ -1,45 +1,49 @@
 package com.edawg878.bukkit
 
-import com.edawg878.common.Server.{Configuration, Plugin, ConfigurationSection}
+import java.nio.file.Path
+
+import com.edawg878.common.Server._
 import org.bukkit.configuration.file.{YamlConfiguration, FileConfiguration}
 import scala.collection.JavaConverters._
+import scala.util.Try
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
  */
-class BukkitConfigurationSection(section: org.bukkit.configuration.ConfigurationSection)
-  extends ConfigurationSection {
+/*
+object BukkitConfiguration {
 
-  override def get(path: String): AnyRef = section.get(path)
+  def load(configPath: Path): Configuration = new BukkitConfiguration(configPath, YamlConfiguration.loadConfiguration(configPath.toFile))
 
-  override def getSection(path: String): ConfigurationSection =
-    new BukkitConfigurationSection(section.getConfigurationSection(path))
-
-  override def set(path: String, value: AnyVal): Unit = section.set(path, value)
-
-  override def get[T](path: String, default: T): Unit = section.get(path, default)
-
-  override def getKeys: Iterable[String] = section.getKeys(false).asScala
 }
 
-class BukkitConfiguration(plugin: Plugin, name: String, var config: FileConfiguration)
-  extends Configuration(plugin, name) {
+class BukkitConfigurationSection(parent: BukkitConfiguration, section: org.bukkit.configuration.ConfigurationSection)
+  extends ConfigurationSection {
 
-  def this(plugin: Plugin, name: String) = this(plugin, name, YamlConfiguration.loadConfiguration(plugin.resolveFile(name).toFile))
+  override def getSection(path: String): Option[ConfigurationSection] =
+    Option(section.getConfigurationSection(path)).map(new BukkitConfigurationSection(parent, _))
 
-  def reload: Configuration = new BukkitConfiguration(plugin, name, YamlConfiguration.loadConfiguration(path.toFile))
+  override def getKeys: Iterable[String] = section.getKeys(false).asScala
 
-  override def save(): Unit = config.save(path.toFile)
+  override def get(path: String): Option[YamlValue] = Option(section.get(path)).flatMap(Yaml.readObj)
 
-  override def get(path: String): AnyRef = config.get(path)
+  override def set(path: String, value: YamlValue): Unit = section.set(path, value)
+}
 
-  override def getSection(path: String): ConfigurationSection =
-    new BukkitConfigurationSection(config.getConfigurationSection(path))
+class BukkitConfiguration(val configPath: Path, config: FileConfiguration)
+  extends Configuration(configPath) {
 
-  override def set(path: String, value: AnyVal): Unit = config.set(path, value)
+  def reload: Configuration = BukkitConfiguration.load(configPath)
 
-  override def get[T](path: String, default: T): Unit = config.get(path, default)
+  override def save(): Unit = config.save(configPath.toFile)
+
+  override def get(path: String): Option[YamlValue] = Option(config.get(path)).flatMap(Yaml.readObj)
+
+  override def getSection(path: String): Option[ConfigurationSection] =
+    Option(config.getConfigurationSection(path)).map(new BukkitConfigurationSection(this, _))
 
   override def getKeys: Iterable[String] = config.getKeys(false).asScala
 
+  override def set(path: String, yaml: YamlValue): Unit = config.set(path, yaml.value)
 }
+*/

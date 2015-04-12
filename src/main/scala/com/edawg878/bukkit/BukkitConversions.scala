@@ -15,9 +15,9 @@ object BukkitConversions {
   implicit class BukkitPlugin(val plugin: org.bukkit.plugin.Plugin) {
 
     def toPlugin: Plugin = new Plugin {
-      override def getDataFolder: Path = plugin.getDataFolder.toPath
+      override val dataFolder: Path = plugin.getDataFolder.toPath
 
-      override def getLogger: Logger = plugin.getLogger
+      override val logger: Logger = plugin.getLogger
 
       override def getResource(name: String): InputStream = plugin.getResource(name)
     }
@@ -37,9 +37,9 @@ object BukkitConversions {
   implicit class BukkitPlayer(val player: org.bukkit.entity.Player) {
 
     def toPlayer: Player = new Player {
-      override def getName: String = player.getName
+      override def name: String = player.getName
 
-      override def getUniqueId: UUID = player.getUniqueId
+      override def id: UUID = player.getUniqueId
 
       override def sendMessage(message: String): Unit = player.sendMessage(message)
 

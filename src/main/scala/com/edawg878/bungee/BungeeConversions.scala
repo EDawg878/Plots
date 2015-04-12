@@ -18,9 +18,9 @@ object BungeeConversions {
   implicit class BungeePlugin(val plugin: net.md_5.bungee.api.plugin.Plugin) {
 
     def toPlugin: Plugin = new Plugin {
-      override def getDataFolder: Path = plugin.getDataFolder.toPath
+      override val dataFolder: Path = plugin.getDataFolder.toPath
 
-      override def getLogger: Logger = plugin.getLogger
+      override val logger: Logger = plugin.getLogger
 
       override def getResource(name: String): InputStream = plugin.getResourceAsStream(name)
     }
@@ -40,9 +40,9 @@ object BungeeConversions {
   implicit class BungeePlayer(val player: ProxiedPlayer) {
 
     def toPlayer: Player = new Player {
-      override def getName: String = player.getName
+      override def name: String = player.getName
 
-      override def getUniqueId: UUID = player.getUniqueId
+      override def id: UUID = player.getUniqueId
 
       override def sendMessage(message: String): Unit = player.sendMessage(TextComponent.fromLegacyText(message): _*)
 

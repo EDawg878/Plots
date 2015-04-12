@@ -6,7 +6,7 @@ import java.util.UUID
 import java.util.logging.{Level, Logger}
 
 import com.edawg878.common.Server.Player
-import reactivemongo.api.MongoDriver
+import reactivemongo.api.{MongoConnection, MongoDriver}
 import reactivemongo.api.collections.default.BSONCollection
 import reactivemongo.api.indexes.{Index, IndexType}
 import reactivemongo.bson.Subtype.UuidSubtype
@@ -23,7 +23,7 @@ class PlayerNotFound(name: String) extends RuntimeException(s"Player '$name' was
 trait PlayerRepository {
 
   def find(player: Player): Future[PlayerData] =
-    search(player.getUniqueId).map(_.getOrElse(throw new PlayerNotFound(player.getName)))
+    search(player.id).map(_.getOrElse(throw new PlayerNotFound(player.name)))
 
   def traverseById(ids: UUID*): Future[Seq[PlayerData]] = Future.traverse(ids)(find)
 
@@ -150,10 +150,10 @@ trait BSONHandlers {
 
 }
 
-class MongoPlayerRepository(logger: Logger) extends PlayerRepository with BSONHandlers {
+class MongoPlayerRepository(driver: MongoDriver, conn: MongoConnection, logger: Logger) extends PlayerRepository with BSONHandlers {
 
-  val driver = new MongoDriver
-  val conn = driver.connection(List("localhost"))
+  //val driver = new MongoDriver
+  //val conn = driver.connection(List("localhost"))
   val db = conn.db("minecraft")
   val col = db.collection[BSONCollection]("players")
 

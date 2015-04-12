@@ -40,7 +40,7 @@ case class PlayerData(id: UUID,
                       playTime: PlayTime = PlayTime()) {
 
   def this(p: Player) =
-    this(id = p.getUniqueId, name = p.getName)
+    this(id = p.id, name = p.name)
 
   def displayPlayTime(online: Boolean): String = {
     val time = DateUnit.format(playTime.duration(online)).mkString(" ")
