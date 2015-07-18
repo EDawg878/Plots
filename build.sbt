@@ -34,6 +34,7 @@ libraryDependencies ++= Seq(
   //"com.softwaremill.quicklens" %% "quicklens" % "1.2",
   "com.typesafe.akka" %% "akka-actor" % "2.3.6",
   "com.typesafe.akka" %% "akka-contrib" % "2.3.6",
-  "com.typesafe.play" %% "play-json" % "2.3.4"
+  "com.typesafe.play" %% "play-json" % "2.3.4",
+  "org.rogach" %% "scallop" % "0.9.5"
   //"com.github.scopt" %% "scopt" % "3.3.0"
 )

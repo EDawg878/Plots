@@ -19,11 +19,11 @@ object Credit {
   class CreditCommand(val db: PlayerRepository) extends BukkitCommand[Config]
     with PlayerDataReader with IntOpsReader {
 
-    override def meta = CommandMeta(cmd = "credit", perm = None)
+    def meta = CommandMeta(cmd = "credit", perm = None)
 
-    override val default = Config(op = Show, data = null, credits = 1)
+    val default = Config(op = Show, data = null, credits = 1)
 
-    override val parser = new BukkitOptionParser[Config]("/credit") {
+    val parser = new BukkitOptionParser[Config]("/credit") {
       arg[IntOp]("<operation>") required() action { (x, c) =>
         c.copy(op = x)
       } text "operations: +, -, set, show"
@@ -35,7 +35,7 @@ object Credit {
       } text "number of credits to add/subtract/set"
     }
 
-    override def handle(sender: CommandSender, c: Config): Unit = onComplete(sender, c.data) { data =>
+    def handle(sender: CommandSender, c: Config): Unit = onComplete(sender, c.data) { data =>
       c.op match {
         case Add | Subtract | Set =>
           val updated = data.copy(voteCredits = c.op.using(data.voteCredits, c.credits).max(0))

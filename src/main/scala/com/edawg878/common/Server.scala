@@ -4,13 +4,15 @@ import java.io.{InputStream, IOException}
 import java.nio.file.{Files, Path}
 import java.util.UUID
 import java.util.logging.Logger
+import com.edawg878.bukkit.plot.{PlotStyle, PlotWorld, PlotWorldConfig, Border}
+import org.bukkit.block.Biome
 import play.api.data.validation.ValidationError
 import play.api.libs.json._
 import reactivemongo.bson._
 
 import scala.collection.JavaConverters._
 
-import org.bukkit.{World, Bukkit, Location}
+import org.bukkit._
 
 import scala.collection.generic.CanBuildFrom
 import scala.language.{implicitConversions, higherKinds}
@@ -36,6 +38,7 @@ object Server {
 
   }
 
+  /*
   sealed trait YamlValue
 
   case class YamlString(value: String) extends YamlValue
@@ -168,6 +171,45 @@ object Server {
     def getSection(path: String): Option[ConfigurationSection]
 
   }
+  */
+
+  object Configuration {
+
+    import CustomCombinators._
+
+    def tryLoad(p: Plugin, f: Path): PlotWorldConfig = {
+      saveDefault(p, f)
+      load(f).getOrElse(throw new RuntimeException(s"Failed to load config: $f"))
+    }
+
+    def load(f: Path): Option[PlotWorldConfig] =
+      Json.parse(Files.readAllBytes(f)).asOpt[PlotWorldConfig]
+
+    def saveDefault(p: Plugin, f: Path): Unit = {
+      if (Files.notExists(f)) {
+        Files.createDirectories(f.getParent)
+        val name = f.getFileName.toString
+        p.saveResource(p.getResource(name), name)
+      }
+    }
+
+  }
+
+  trait ConfigurationA {
+
+    def save(): Unit
+
+    def saveDefault(plugin: Plugin): Unit = {
+      if (Files.notExists(file)) {
+        Files.createDirectories(file.getParent)
+        val name = file.getFileName.toString
+        plugin.saveResource(plugin.getResource(name), name)
+      }
+    }
+
+    def file: Path
+
+  }
 
   import play.api.libs.functional.syntax._
 
@@ -187,7 +229,7 @@ object Server {
       override def writes(w: World): JsValue = JsString(w.getName)
     }
 
-    implicit val locationFormat: Reads[Location] = (
+    implicit val locationReads: Reads[Location] = (
       (__ \ "world").read[World] ~
         (__ \ "x").read[Double] ~
         (__ \ "y").read[Double] ~
@@ -206,6 +248,32 @@ object Server {
         "pitch" -> l.getPitch
       )
     }
+
+    implicit val materialWrites = new Writes[Material] {
+      override def writes(m: Material): JsValue = JsString(m.name.toLowerCase)
+    }
+
+    implicit val biomeReads = new Reads[Biome] {
+
+      override def reads(json: JsValue): JsResult[Biome] = json match {
+        case JsString(s) =>
+          Try(Biome.valueOf(s.toUpperCase)).toOption.map(JsSuccess(_)).getOrElse(JsError("Biome value expected"))
+        case _ => JsError("Biome value expected")
+      }
+
+    }
+
+    implicit val biomeWrites = new Writes[Biome] {
+      override def writes(b: Biome): JsValue = JsString(b.name.toLowerCase)
+    }
+
+    implicit val materialReads: Reads[Material] = __.read[String].map(Material.matchMaterial)
+
+    implicit val plotStyleFormat = Json.format[PlotStyle]
+
+    implicit val plotWorldFormat = Json.format[PlotWorld]
+
+    implicit val plotWorldConfigFormat = Json.format[PlotWorldConfig]
 
   }
 
@@ -244,6 +312,12 @@ object Server {
     def isOnline(name: String): Boolean = getPlayer(name).isDefined
 
     def isOnline(id: UUID): Boolean = getPlayer(id).isDefined
+
+  }
+
+  trait Reloadable {
+
+    def reload(): Unit
 
   }
 

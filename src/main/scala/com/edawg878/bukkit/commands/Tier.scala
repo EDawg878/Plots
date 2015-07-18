@@ -20,11 +20,11 @@ object Tier {
   class TierCommand(val db: PlayerRepository) extends BukkitCommand[Config]
     with PlayerDataReader with IntOpsReader {
 
-    override def meta = CommandMeta(cmd = "tier", perm = None)
+    def meta = CommandMeta(cmd = "tier", perm = None)
 
-    override val default = Config(op = Show, data = null, tier = 1)
+    val default = Config(op = Show, data = null, tier = 1)
 
-    override val parser = new BukkitOptionParser[Config]("/tier") {
+    val parser = new BukkitOptionParser[Config]("/tier") {
       arg[IntOp]("<operation>") required() action { (x, c) =>
         c.copy(op = x)
       } text "operations: +, -, set, show"
@@ -36,7 +36,7 @@ object Tier {
       } text "number of tiers to add/subtract/set"
     }
 
-    override def handle(sender: CommandSender, c: Config): Unit = onComplete(sender, c.data) { data =>
+    def handle(sender: CommandSender, c: Config): Unit = onComplete(sender, c.data) { data =>
       c.op match {
         case Add | Subtract | Set =>
           val updated = data.copy(tier = c.op.using(data.tier, c.tier).clamp(0, 10))

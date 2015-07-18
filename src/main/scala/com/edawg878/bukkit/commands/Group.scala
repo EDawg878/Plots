@@ -20,11 +20,11 @@ object Group {
   class GroupCommand(val db: PlayerRepository) extends BukkitCommand[Config]
     with PlayerDataReader with GroupOpsReader with GroupReader {
 
-    override def meta = CommandMeta(cmd = "group", perm = None)
+    def meta = CommandMeta(cmd = "group", perm = None)
 
-    override val default = Config(op = Show, data = null, group = Default)
+    val default = Config(op = Show, data = null, group = Default)
 
-    override val parser = new BukkitOptionParser[Config]("/group") {
+    val parser = new BukkitOptionParser[Config]("/group") {
       arg[GroupOp]("<operation>") required() action { (x,c) =>
         c.copy(op = x)
       } text "operations: promote, demote, set, show"
@@ -36,7 +36,7 @@ object Group {
       } text "group to set"
     }
 
-    override def handle(sender: CommandSender, c: Config): Unit = onComplete(sender, c.data) { data =>
+    def handle(sender: CommandSender, c: Config): Unit = onComplete(sender, c.data) { data =>
       c.op match {
         case Promote | Demote | Set =>
           val updated = data.copy(group = c.op.using(data.group, c.group))

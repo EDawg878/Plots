@@ -14,16 +14,16 @@ import scala.concurrent.Future
  */
 object Perk {
 
-  case class Config(fn: PerkOp, data: Future[PlayerData], perk: String)
+  case class Config(fn: PerkOp, data: Future[PlayerData], perk: Option[String])
 
   class PerkCommand(val db: PlayerRepository) extends BukkitCommand[Config]
     with PlayerDataReader with PerkOpsReader {
 
-    override def meta = CommandMeta(cmd = "perk", perm = None)
+    def meta = CommandMeta(cmd = "perk", perm = None)
 
-    override val default = Config(fn = Show, data = null, perk = "")
+    val default = Config(fn = Show, data = null, perk = None)
 
-    override val parser = new BukkitOptionParser[Config]("/perk") {
+    val parser = new BukkitOptionParser[Config]("/perk") {
       arg[PerkOp]("<operation>") required() action { (x, c) =>
         c.copy(fn = x)
       } text "operations: +, -, clear, show"
@@ -31,20 +31,19 @@ object Perk {
         c.copy(data = x)
       } text "player to modify"
       arg[String]("<perk>") optional() action { (x, c) =>
-        c.copy(perk = x)
+        c.copy(perk = Some(x))
       } text "perk to add/subtract"
       checkConfig(c => c.fn match {
         case Add | Subtract =>
-          if (c.perk.trim.isEmpty) failure("You must specify a perk")
-          else success
+          if (c.perk.isDefined) success else failure("You must specify a perk")
         case _ => success
       })
     }
 
-    override def handle(sender: CommandSender, c: Config): Unit = onComplete(sender, c.data) { data =>
+    def handle(sender: CommandSender, c: Config): Unit = onComplete(sender, c.data) { data =>
       c.fn match {
         case Add | Subtract | Clear =>
-          val updated = data.copy(perks = c.fn.using(data.perks, c.perk))
+          val updated = data.copy(perks = c.fn.using(data.perks, c.perk.get))
           sender.sendMessage(updated.displayPerks)
           db.save(updated)
         case Show => sender.sendMessage(data.displayPerks)

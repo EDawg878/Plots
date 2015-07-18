@@ -52,7 +52,7 @@ object PerkOps {
     def using(col: Set[String], str: String) = col
   }
   case object Clear extends PerkOp {
-    def using(col: Set[String], str: String) = Set.empty
+    def using(col: Set[String], str: String) = Set()
   }
 
 }

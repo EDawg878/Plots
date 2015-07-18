@@ -1,22 +1,24 @@
 package com.edawg878.common
 
+import java.time.{Duration, _}
 import java.time.temporal.ChronoUnit
-import java.time.{Duration, Instant}
 import java.util.UUID
 import java.util.logging.{Level, Logger}
 
+import com.edawg878.bukkit.plot.{Plot, PlotId, PlotWorld}
 import com.edawg878.common.Server.Player
-import reactivemongo.api.{MongoConnection, MongoDriver}
 import reactivemongo.api.collections.default.BSONCollection
 import reactivemongo.api.indexes.{Index, IndexType}
+import reactivemongo.api.{DB, DefaultDB, MongoConnection, MongoDriver}
 import reactivemongo.bson.Subtype.UuidSubtype
 import reactivemongo.bson._
-import com.edawg878.common.Color.Formatter
 
 import scala.annotation.tailrec
+import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
+
 
 class PlayerNotFound(name: String) extends RuntimeException(s"Player '$name' was not found in the database")
 
@@ -48,6 +50,20 @@ trait PlayerRepository {
   def save(data: PlayerData): Unit
 
   def delete(id: UUID): Unit
+
+}
+
+trait PlotRepository {
+
+  def findAll(w: PlotWorld): Future[Seq[Plot]]
+
+  def find(w: PlotWorld, id: PlotId): Future[Option[Plot]]
+
+  def insert(w: PlotWorld, p: Plot): Unit
+
+  def save(w: PlotWorld, p: Plot): Unit
+
+  def delete(w: PlotWorld, p: PlotId): Unit
 
 }
 
@@ -96,6 +112,27 @@ trait BSONHandlers {
     override def write(time: Instant): BSONDateTime = BSONDateTime(time.toEpochMilli)
 
     override def read(bson: BSONDateTime): Instant = Instant.ofEpochMilli(bson.value)
+
+  }
+
+  implicit object LocalDateHandler extends BSONHandler[BSONLong, LocalDate] {
+
+    override def write(d: LocalDate): BSONLong = BSONLong(d.toEpochDay)
+
+    override def read(bson: BSONLong): LocalDate = LocalDate.ofEpochDay(bson.value)
+  }
+
+  implicit object PlotIdHandler extends BSONHandler[BSONDocument, PlotId] {
+
+    override def write(id: PlotId): BSONDocument = BSONDocument("x" -> id.x, "z" -> id.z, "world" -> id.world)
+
+    override def read(bson: BSONDocument): PlotId = PlotId(bson.getAs[Int]("x").get, bson.getAs[Int]("z").get, bson.getAs[String]("world").get)
+  }
+
+  implicit object PlotWorldWriter extends BSONWriter[PlotWorld, BSONString] {
+
+    override def write(w: PlotWorld): BSONString = BSONString(w.name)
+
   }
 
   implicit object PlayerDataHandler extends BSONDocumentWriter[PlayerData] with BSONDocumentReader[PlayerData] {
@@ -122,7 +159,7 @@ trait BSONHandlers {
     override def read(doc: BSONDocument): PlayerData = {
       val _id = doc.getAs[UUID]("_id").get
       val _name = doc.getAs[String]("name").get
-      val _usernames = doc.getAs[Set[String]]("usernames").getOrElse(Set.empty)
+      val _usernames = doc.getAs[mutable.LinkedHashSet[String]]("usernames").getOrElse(new mutable.LinkedHashSet)
       val _perks = doc.getAs[Set[String]]("perks").getOrElse(Set.empty)
       val _displayName = doc.getAs[String]("displayName")
       val _tier = doc.getAs[Int]("tier").get
@@ -148,20 +185,54 @@ trait BSONHandlers {
     }
   }
 
+  implicit object PlotHandler extends BSONDocumentWriter[Plot] with BSONDocumentReader[Plot] {
+    override def write(self: Plot): BSONDocument = {
+      BSONDocument(
+        "_id" -> self.id,
+        "owner" -> self.owner,
+        "timeClaimed" -> self.timeClaimed,
+        "expirationDate" -> self.expirationDate,
+        "protected" -> self.protect,
+        "closed" -> self.closed,
+        "roadAccess" -> self.roadAccess
+      ) ++ BSONDocument(
+        "helpers" -> self.helpers,
+        "trusted" -> self.trusted,
+        "banned" -> self.banned
+      )
+    }
+
+    override def read(doc: BSONDocument): Plot = {
+      val _id = doc.getAs[PlotId]("_id").get
+      val _owner = doc.getAs[UUID]("owner").get
+      val _timeClaimed = doc.getAs[Instant]("timeClaimed").get
+      val _expirationDate = doc.getAs[LocalDate]("expirationDate").get
+      val _protected = doc.getAs[Boolean]("protected").get
+      val _closed = doc.getAs[Boolean]("closed").get
+      val _roadAccess = doc.getAs[Boolean]("roadAccess").get
+      val _helpers = doc.getAs[Set[UUID]]("helpers").getOrElse(Set())
+      val _trusted = doc.getAs[Set[UUID]]("trusted").getOrElse(Set())
+      val _banned = doc.getAs[Set[UUID]]("banned").getOrElse(Set())
+      Plot(
+        id = _id,
+        owner = _owner,
+        timeClaimed = _timeClaimed,
+        expirationDate = _expirationDate,
+        protect = _protected,
+        closed = _closed,
+        roadAccess = _roadAccess,
+        helpers = _helpers,
+        trusted = _trusted,
+        banned = _banned
+      )
+    }
+  }
+
 }
 
-class MongoPlayerRepository(driver: MongoDriver, conn: MongoConnection, logger: Logger) extends PlayerRepository with BSONHandlers {
+trait MongoRepository {
 
-  //val driver = new MongoDriver
-  //val conn = driver.connection(List("localhost"))
-  val db = conn.db("minecraft")
-  val col = db.collection[BSONCollection]("players")
-
-  def queryById(id: UUID): BSONDocument = BSONDocument("_id" -> id)
-
-  def queryByName(name: String): BSONDocument = BSONDocument("lowerName" -> name.toLowerCase)
-
-  private def ensureIndex(name: String, index: Index): Unit = {
+  def ensureIndex(col: BSONCollection, name: String, index: Index): Unit = {
     logger.info(s"Ensuring index '$name'...")
     col.indexesManager.ensure(index) onComplete {
       case Success(created) =>
@@ -172,8 +243,21 @@ class MongoPlayerRepository(driver: MongoDriver, conn: MongoConnection, logger: 
     }
   }
 
+  def logger: Logger
+
+}
+
+class MongoPlayerRepository(mongo: DB, conn: MongoConnection, val logger: Logger) extends MongoRepository
+  with PlayerRepository with BSONHandlers {
+
+  val col = mongo.collection[BSONCollection]("players")
+
+  def queryById(id: UUID): BSONDocument = BSONDocument("_id" -> id)
+
+  def queryByName(name: String): BSONDocument = BSONDocument("lowerName" -> name.toLowerCase)
+
   def ensureIndexes(): Unit = {
-    ensureIndex("Lowercase Username", Index(key = List(("lowerName", IndexType.Ascending))))
+    ensureIndex(col, "Lowercase Username", Index(key = List(("lowerName", IndexType.Ascending))))
   }
 
   override def insert(data: PlayerData): Unit = col.insert(data)
@@ -188,4 +272,30 @@ class MongoPlayerRepository(driver: MongoDriver, conn: MongoConnection, logger: 
 
   override def delete(id: UUID): Unit = col.remove(queryById(id))
 
+}
+
+class MongoPlotRepository(mongo: DB, val logger: Logger) extends MongoRepository
+  with PlotRepository with BSONHandlers {
+
+  val col = mongo.collection[BSONCollection]("plots")
+
+  def ensureIndexes(): Unit = {
+    ensureIndex(col, "Plot World", Index(key = List(("world", IndexType.Ascending))))
+  }
+
+  def queryById(w: PlotWorld, id: PlotId): BSONDocument = BSONDocument("_id" -> id)
+
+  def queryByWorld(w: PlotWorld): BSONDocument = BSONDocument("_id.world" -> w.name)
+
+  override def findAll(w: PlotWorld): Future[Seq[Plot]] =
+    col.find(queryByWorld(w)).cursor[Plot].collect[Vector]()
+
+  override def find(w: PlotWorld, id: PlotId): Future[Option[Plot]] =
+    col.find(queryById(w, id)).cursor[Plot].headOption
+
+  override def insert(w: PlotWorld, p: Plot): Unit = col.insert(p)
+
+  override def delete(w: PlotWorld, id: PlotId): Unit = col.remove(queryById(w, id))
+
+  override def save(w: PlotWorld, p: Plot): Unit = col.save(p)
 }

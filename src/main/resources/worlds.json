@@ -1,0 +1,23 @@
+{
+  "worlds": [
+    {
+      "name": "world",
+      "plotSize": 64,
+      "borderHeight": 65,
+      "topHeight": 64,
+      "pathHeight": 64,
+      "pathWidth": 3,
+      "buildOnFloor": false,
+      "maxHeight": 256,
+      "style": {
+        "border": "step",
+        "bottom": "bedrock",
+        "top": "grass",
+        "filling": "dirt",
+        "wall": "double_step",
+        "path": "wood",
+        "biome": "plains"
+      }
+    }
+  ]
+}

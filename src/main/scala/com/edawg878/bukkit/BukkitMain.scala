@@ -1,23 +1,18 @@
 package com.edawg878.bukkit
 
-import java.nio.file.Files
-
-import akka.actor.{ActorSystem, Props}
-import akka.cluster.Cluster
-import com.edawg878.bukkit.BukkitConversions._
-import com.edawg878.common.{MyConfig, Command, Publisher, Subscriber}
+import com.edawg878.bukkit.plot.PlotGenerator
+import com.edawg878.common.{PlayerData, Command}
 import com.edawg878.common.Modules.BukkitModule
-import com.edawg878.common.Server.Plugin
-import org.bukkit.Location
-import org.bukkit.command.{CommandSender, CommandExecutor}
-import org.bukkit.event.player.{PlayerQuitEvent, PlayerJoinEvent}
+import org.bukkit.command.{CommandExecutor, CommandSender}
+import org.bukkit.event.player.{PlayerJoinEvent, PlayerQuitEvent}
 import org.bukkit.event.{EventHandler, Listener}
+import org.bukkit.generator.ChunkGenerator
 import org.bukkit.plugin.java.JavaPlugin
-import play.api.libs.json.{JsPath, Format, Json}
+import BukkitConversions._
 
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.collection.JavaConverters._
-import scala.io.Source
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.Success
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
@@ -30,19 +25,8 @@ class BukkitMain extends JavaPlugin with Listener {
 
   import bukkitModule._
 
-  override def onLoad() {
+  override def onLoad(): Unit = {
     db.ensureIndexes()
-    /*
-    val systemName = "Test"
-    val system = ActorSystem(systemName)
-    val joinAddress = Cluster(system).selfAddress
-    Cluster(system).join(joinAddress)
-    system.actorOf(Props[Subscriber], "subscriber1")
-    val publisher = system.actorOf(Props[Publisher], "publisher1")
-    for (i <- 1 to 100) {
-      publisher ! "hello"
-    }
-    */
   }
 
   def registerCommand(command: Command[CommandSender]): Unit = {
@@ -59,50 +43,34 @@ class BukkitMain extends JavaPlugin with Listener {
     bc.setExecutor(exec)
   }
 
-  def registerCommands(): Unit = {
-    val commands = Seq(tierCommand, perkCommand, creditCommand, groupCommand, playTimeCommand, seenCommand)
+  def registerListener(l: Listener): Unit = getServer.getPluginManager.registerEvents(l, this)
+
+  override def onEnable(): Unit = {
+    getServer.getPluginManager.registerEvents(this, this)
+    listeners.foreach(registerListener)
     commands.foreach(registerCommand)
   }
 
-
-
-  override def onEnable() {
-    getServer.getPluginManager.registerEvents(this, this)
-    registerCommands()
-    /*
-    val p = this.toPlugin
-    val path = p.dataFolder.resolve("example")
-    if (Files.notExists(path)) Files.createFile(path)
-
-    import java.nio.charset.StandardCharsets.UTF_8
-    val l = new Location(getServer.getWorlds.get(0), 1, 2, 3, 4, 5)
-    val c = MyConfig(locs = List(l, l, l), l)
-    val json = Json.prettyPrint(Json.toJson(c))
-    Files.write(path, json.getBytes(UTF_8))
-    */
-    val l = new Location(getServer.getWorlds.get(0), 1, 2, 3, 4, 5)
-    val name = "MyConfig"
-    val c = MyConfig(name, List(l,l,l), l)
-    cdb.save(c)
-    cdb.find(name).collect {
-      case Some(myc) => getLogger.info(myc.toString)
-    }
-  }
+  override def getDefaultWorldGenerator(worldName: String, style: String): ChunkGenerator =
+    getPlotWorld(worldName).map(new PlotGenerator(_)).orNull
 
   @EventHandler
   def onJoin(event: PlayerJoinEvent) {
     val player = event.getPlayer.toPlayer
-    db.find(player) onSuccess {
-      case data =>
-        val updated = data.copy(playTime = data.playTime.login)
+    db.find(player.id) onComplete {
+      case Success(data) =>
+        val updated = data.updateName(player.name)
+          .copy(playTime = data.playTime.login)
         db.save(updated)
+      case _ =>
+        db.insert(new PlayerData(player))
     }
   }
 
   @EventHandler
   def onQuit(event: PlayerQuitEvent): Unit = {
-    val player = event.getPlayer.toPlayer
-    db.find(player) onSuccess {
+    val player = event.getPlayer
+    db.find(player.getUniqueId) onSuccess {
       case data =>
         val updated = data.copy(playTime = data.playTime.logout)
         db.save(updated)

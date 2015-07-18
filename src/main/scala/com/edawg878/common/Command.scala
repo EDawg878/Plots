@@ -1,6 +1,8 @@
 package com.edawg878.common
 
 import com.edawg878.common.Readers.PlayerDataReader
+import net.md_5.bungee.api.chat.ComponentBuilder
+import org.bukkit.entity.Player
 import scopt.ConsoleHandler.ConsoleHandler
 import scopt.CustomOptionParser
 
@@ -46,7 +48,7 @@ trait Command[S] {
 
 abstract class BaseCommand[C, S] extends Command[S] with ConfigCommand[C,S] {
 
-  override def execute(sender: S, args: Seq[String]): Unit = run(sender, args)
+  def execute(sender: S, args: Seq[String]): Unit = run(sender, args)
 
 }
 
@@ -69,42 +71,28 @@ object BukkitCommandHandler {
 
   val console = new ConsoleHandler[CommandSender] {
 
-    override def print(sender: CommandSender, msg: String): Unit =
+    def print(sender: CommandSender, msg: String): Unit =
       sender.sendMessage(msg)
 
-    override def exit(): Unit = {}
+    def exit(): Unit = {}
 
-    override def printError(sender: CommandSender, msg: String): Unit =
+    def printError(sender: CommandSender, msg: String): Unit =
       sender.sendMessage(Color.Error + msg)
   }
 
   class BukkitOptionParser[C](cmd: String) extends CustomOptionParser[C, CommandSender](cmd)(console)
 
-  abstract class BukkitCommand[C] extends BaseCommand[C, CommandSender]
+  abstract class BukkitCommand[C] extends BaseCommand[C, CommandSender] {
 
-  abstract class BasicBukkitCommand extends BasicCommand[CommandSender](console)
+    def asPlayer(sender: CommandSender)(f: Player => Unit): Unit = {
+      sender match {
+        case p: Player => f(p)
+        case _ => console.printError(sender, "You must be online to execute this command.")
+      }
+    }
 
-}
-
-object BungeeCommandHandler {
-
-  import net.md_5.bungee.api.CommandSender
-  import net.md_5.bungee.api.chat.TextComponent
-
-  val console = new ConsoleHandler[CommandSender] {
-    override def print(sender: CommandSender, msg: String): Unit =
-      sender.sendMessage(TextComponent.fromLegacyText(msg): _*)
-
-    override def exit(): Unit = {}
-
-    override def printError(sender: CommandSender, msg: String): Unit =
-      sender.sendMessage(TextComponent.fromLegacyText(Color.Error + msg): _*)
   }
 
-  class BungeeOptionParser[C](cmd: String) extends CustomOptionParser[C, CommandSender](cmd)(console)
-
-  abstract class BungeeCommand[C] extends BaseCommand[C, CommandSender]
-
-  abstract class BasicBungeeCommand extends BasicCommand[CommandSender](console)
+  abstract class BasicBukkitCommand extends BasicCommand[CommandSender](console)
 
 }

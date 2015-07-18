@@ -1,6 +1,7 @@
 name: ScalaTest
 main: com.edawg878.bukkit.BukkitMain
 version: 1
+load: startup
 commands:
   tier: {}
   perk: {}
@@ -8,3 +9,6 @@ commands:
   group: {}
   playTime: {}
   seen: {}
+  whoIs: {}
+  plot:
+    aliases: [p, plotme]
