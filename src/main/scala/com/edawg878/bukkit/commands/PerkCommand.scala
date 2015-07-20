@@ -12,7 +12,7 @@ import scala.concurrent.Future
 /**
  * @author EDawg878 <EDawg878@gmail.com>
  */
-object Perk {
+object PerkCommand {
 
   case class Config(fn: PerkOp, data: Future[PlayerData], perk: Option[String])
 
@@ -44,9 +44,9 @@ object Perk {
       c.fn match {
         case Add | Subtract | Clear =>
           val updated = data.copy(perks = c.fn.using(data.perks, c.perk.get))
-          sender.sendMessage(updated.displayPerks)
+          sender.sendMessage(updated.perksToString)
           db.save(updated)
-        case Show => sender.sendMessage(data.displayPerks)
+        case Show => sender.sendMessage(data.perksToString)
       }
     }
 

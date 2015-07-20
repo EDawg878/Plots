@@ -1,16 +1,19 @@
 package com.edawg878.common
 
-import com.edawg878.bukkit.commands.Basic.{WhoIsCommand, SeenCommand, PlayTimeCommand}
-import com.edawg878.bukkit.commands.Group.GroupCommand
+import com.edawg878.bukkit.commands.BasicCommand.{WhoIsCommand, SeenCommand, PlayTimeCommand}
+import com.edawg878.bukkit.commands.CreditCommand.CreditCommand
+import com.edawg878.bukkit.commands.GroupCommand.GroupCommand
+import com.edawg878.bukkit.commands.PerkCommand.PerkCommand
+import com.edawg878.bukkit.commands.PlotCommand.PlotCommand
+import com.edawg878.bukkit.commands.TierCommand.TierCommand
 import com.edawg878.bukkit.listener.PlotListener
 import com.edawg878.bukkit.plot.{PlotWorld, PlotManager, PlotWorldConfig}
-import com.edawg878.common.Server.CustomCombinators._
 import org.bukkit.World
+import org.bukkit.command.CommandSender
+import org.bukkit.event.Listener
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
-import com.softwaremill.macwire.Macwire
 import com.edawg878.common.Server._
-import org.bukkit.command.CommandSender
 import reactivemongo.api.{DB, MongoDriver}
 
 import scala.concurrent.{Await, Future}
@@ -20,13 +23,14 @@ import scala.concurrent.{Await, Future}
  */
 object Modules {
 
-  trait CommonModule extends Macwire {
-    lazy val logger = plugin.logger
-    lazy val driver = new MongoDriver
-    lazy val conn = driver.connection(List("localhost"))
-    lazy val mongo: DB = conn.db("minecraft")
-    lazy val db = wire[MongoPlayerRepository]
-    lazy val plotDb = wire[MongoPlotRepository]
+  trait CommonModule {
+    val logger = plugin.logger
+    val driver = new MongoDriver
+    val conn = driver.connection(List("localhost"))
+    val mongo: DB = conn.db("minecraft")
+    val playerDb = new MongoPlayerRepository(mongo, logger)
+    val plotDb = new MongoPlotRepository(mongo, logger)
+    val databases = Seq[MongoRepository](playerDb, plotDb)
 
     def plugin: Plugin
     def server: Server
@@ -35,26 +39,22 @@ object Modules {
   trait BukkitModule extends CommonModule {
 
     import com.edawg878.bukkit.BukkitConversions._
-    import com.edawg878.bukkit.commands.Credit.CreditCommand
-    import com.edawg878.bukkit.commands.Perk.PerkCommand
-    import com.edawg878.bukkit.commands.Tier.TierCommand
-    import com.edawg878.bukkit.commands.Plot.PlotCommand
 
-    lazy val tierCommand: Command[CommandSender] = wire[TierCommand]
-    lazy val perkCommand: Command[CommandSender] = wire[PerkCommand]
-    lazy val creditCommand: Command[CommandSender] = wire[CreditCommand]
-    lazy val groupCommand: Command[CommandSender] = wire[GroupCommand]
-    lazy val playTimeCommand: Command[CommandSender] = wire[PlayTimeCommand]
-    lazy val seenCommand: Command[CommandSender] = wire[SeenCommand]
-    lazy val whoIsCommand: Command[CommandSender] = wire[WhoIsCommand]
-    lazy val plotCommand: Command[CommandSender] = new PlotCommand(getPlotManager, db, plotDb)
+    val tierCommand = new TierCommand(playerDb)
+    val perkCommand = new PerkCommand(playerDb)
+    val creditCommand = new CreditCommand(playerDb)
+    val groupCommand = new GroupCommand(playerDb)
+    val playTimeCommand = new PlayTimeCommand(playerDb, server)
+    val seenCommand = new SeenCommand(playerDb, server)
+    val whoIsCommand = new WhoIsCommand(playerDb, server)
+    val plotCommand = new PlotCommand(getPlotManager, playerDb, plotDb, server, bukkitServer)
 
-    lazy val commands = Seq(tierCommand, perkCommand, creditCommand, groupCommand, playTimeCommand, seenCommand,
-      whoIsCommand, plotCommand)
+    val commands = Seq[Command[CommandSender]](tierCommand, perkCommand, creditCommand, groupCommand, playTimeCommand,
+      seenCommand, whoIsCommand, plotCommand)
 
-    lazy val plotListener = new PlotListener(getPlotManager, plotDb)
+    val plotListener = new PlotListener(getPlotManager, plotDb, server, bukkitServer)
 
-    lazy val listeners = Seq(plotListener)
+    val listeners = Seq[Listener](plotListener)
 
     val configFile = plugin.dataFolder.resolve("config.json")
     //var config = Configuration.tryLoad[Config](plugin, configFile)
@@ -65,8 +65,9 @@ object Modules {
 
 
     def plugin: Plugin = bukkitPlugin.toPlugin
-    def server: Server = bukkitPlugin.getServer.toServer
+    def server: Server = bukkitServer.toServer(bukkitPlugin)
     def bukkitPlugin: org.bukkit.plugin.Plugin
+    def bukkitServer: org.bukkit.Server = bukkitPlugin.getServer
 
     def getPlotManager(bw: World): Option[PlotManager] = plots.get(bw.getName)
 

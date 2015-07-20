@@ -14,10 +14,10 @@ object Color {
   implicit class Formatter(sc: StringContext) {
 
     def info(args: Any*): String =
-      Color.Primary + sc.standardInterpolator(identity, args.map(x => Color.Secondary.toString + x + Color.Primary))
+      Primary + sc.standardInterpolator(identity, args.map(x => Secondary.toString + x + Primary))
 
     def err(args: Any*): String =
-      Color.Error + sc.standardInterpolator(identity, args)
+      Error + sc.standardInterpolator(identity, args)
 
   }
 }

@@ -27,10 +27,10 @@ trait PlayerRepository {
   def find(player: Player): Future[PlayerData] =
     search(player.id).map(_.getOrElse(throw new PlayerNotFound(player.name)))
 
-  def traverseById(ids: UUID*): Future[Seq[PlayerData]] = Future.traverse(ids)(find)
+  def traverseById(ids: Seq[UUID]): Future[Seq[PlayerData]] = Future.traverse(ids)(search).map(_.flatten)
 
-  def traverseByName(names: String*): Future[Seq[PlayerData]] = Future.traverse(names) { name =>
-    search(name) map {
+  def traverseByName(names: Seq[String]): Future[Seq[PlayerData]] = Future.traverse(names) { name =>
+    searchAll(name) map {
       case Nil => throw new PlayerNotFound(name)
       case seq => seq.head
     }
@@ -45,7 +45,13 @@ trait PlayerRepository {
 
   def search(id: UUID): Future[Option[PlayerData]]
 
-  def search(name: String): Future[Seq[PlayerData]]
+  def search(name: String): Future[Option[PlayerData]] =
+    searchAll(name).map(_.sorted.headOption)
+
+  def searchAll(name: String): Future[Seq[PlayerData]]
+
+  def find(name: String): Future[PlayerData] =
+    search(name).map(_.headOption).map(_.getOrElse(throw new PlayerNotFound(name)))
 
   def save(data: PlayerData): Unit
 
@@ -84,7 +90,7 @@ trait BSONHandlers {
 
     def fromBytes(data: Array[Byte]): UUID = {
       @tailrec def read(r: Range, acc: Long = 0): Long = {
-        if (r.head == r.last) acc
+        if (r.length == 1) acc
         else read(r.drop(1), (acc << 8) | (data(r.head) & 0xff))
       }
       new UUID(read(0 to 8), read(8 to 16))
@@ -190,6 +196,7 @@ trait BSONHandlers {
       BSONDocument(
         "_id" -> self.id,
         "owner" -> self.owner,
+        "alias" -> self.alias,
         "timeClaimed" -> self.timeClaimed,
         "expirationDate" -> self.expirationDate,
         "protected" -> self.protect,
@@ -205,6 +212,7 @@ trait BSONHandlers {
     override def read(doc: BSONDocument): Plot = {
       val _id = doc.getAs[PlotId]("_id").get
       val _owner = doc.getAs[UUID]("owner").get
+      val _alias = doc.getAs[String]("alias")
       val _timeClaimed = doc.getAs[Instant]("timeClaimed").get
       val _expirationDate = doc.getAs[LocalDate]("expirationDate").get
       val _protected = doc.getAs[Boolean]("protected").get
@@ -216,6 +224,7 @@ trait BSONHandlers {
       Plot(
         id = _id,
         owner = _owner,
+        alias = _alias,
         timeClaimed = _timeClaimed,
         expirationDate = _expirationDate,
         protect = _protected,
@@ -243,11 +252,13 @@ trait MongoRepository {
     }
   }
 
+  def ensureIndexes(): Unit
+
   def logger: Logger
 
 }
 
-class MongoPlayerRepository(mongo: DB, conn: MongoConnection, val logger: Logger) extends MongoRepository
+class MongoPlayerRepository(mongo: DB, val logger: Logger) extends MongoRepository
   with PlayerRepository with BSONHandlers {
 
   val col = mongo.collection[BSONCollection]("players")
@@ -256,7 +267,7 @@ class MongoPlayerRepository(mongo: DB, conn: MongoConnection, val logger: Logger
 
   def queryByName(name: String): BSONDocument = BSONDocument("lowerName" -> name.toLowerCase)
 
-  def ensureIndexes(): Unit = {
+  override def ensureIndexes(): Unit = {
     ensureIndex(col, "Lowercase Username", Index(key = List(("lowerName", IndexType.Ascending))))
   }
 
@@ -267,7 +278,7 @@ class MongoPlayerRepository(mongo: DB, conn: MongoConnection, val logger: Logger
   override def search(id: UUID): Future[Option[PlayerData]] =
     col.find(queryById(id)).cursor[PlayerData].headOption
 
-  override def search(name: String): Future[Seq[PlayerData]] =
+  override def searchAll(name: String): Future[Seq[PlayerData]] =
     col.find(queryByName(name)).cursor[PlayerData].collect[Vector]()
 
   override def delete(id: UUID): Unit = col.remove(queryById(id))
@@ -279,9 +290,7 @@ class MongoPlotRepository(mongo: DB, val logger: Logger) extends MongoRepository
 
   val col = mongo.collection[BSONCollection]("plots")
 
-  def ensureIndexes(): Unit = {
-    ensureIndex(col, "Plot World", Index(key = List(("world", IndexType.Ascending))))
-  }
+  override def ensureIndexes(): Unit = {}
 
   def queryById(w: PlotWorld, id: PlotId): BSONDocument = BSONDocument("_id" -> id)
 

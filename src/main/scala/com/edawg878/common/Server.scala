@@ -173,47 +173,10 @@ object Server {
   }
   */
 
-  object Configuration {
 
-    import CustomCombinators._
+  trait CustomCombinators {
 
-    def tryLoad(p: Plugin, f: Path): PlotWorldConfig = {
-      saveDefault(p, f)
-      load(f).getOrElse(throw new RuntimeException(s"Failed to load config: $f"))
-    }
-
-    def load(f: Path): Option[PlotWorldConfig] =
-      Json.parse(Files.readAllBytes(f)).asOpt[PlotWorldConfig]
-
-    def saveDefault(p: Plugin, f: Path): Unit = {
-      if (Files.notExists(f)) {
-        Files.createDirectories(f.getParent)
-        val name = f.getFileName.toString
-        p.saveResource(p.getResource(name), name)
-      }
-    }
-
-  }
-
-  trait ConfigurationA {
-
-    def save(): Unit
-
-    def saveDefault(plugin: Plugin): Unit = {
-      if (Files.notExists(file)) {
-        Files.createDirectories(file.getParent)
-        val name = file.getFileName.toString
-        plugin.saveResource(plugin.getResource(name), name)
-      }
-    }
-
-    def file: Path
-
-  }
-
-  import play.api.libs.functional.syntax._
-
-  object CustomCombinators {
+    import play.api.libs.functional.syntax._
 
     implicit val worldReads = new Reads[World] {
 
@@ -277,6 +240,44 @@ object Server {
 
   }
 
+
+  object Configuration extends CustomCombinators {
+
+    def tryLoad(p: Plugin, f: Path): PlotWorldConfig = {
+      saveDefault(p, f)
+      load(f).getOrElse(throw new RuntimeException(s"Failed to load config: $f"))
+    }
+
+    def load(f: Path): Option[PlotWorldConfig] =
+      Json.parse(Files.readAllBytes(f)).asOpt[PlotWorldConfig]
+
+    def saveDefault(p: Plugin, f: Path): Unit = {
+      if (Files.notExists(f)) {
+        Files.createDirectories(f.getParent)
+        val name = f.getFileName.toString
+        p.saveResource(p.getResource(name), name)
+      }
+    }
+
+  }
+
+  trait ConfigurationA {
+
+    def save(): Unit
+
+    def saveDefault(plugin: Plugin): Unit = {
+      if (Files.notExists(file)) {
+        Files.createDirectories(file.getParent)
+        val name = file.getFileName.toString
+        plugin.saveResource(plugin.getResource(name), name)
+      }
+    }
+
+    def file: Path
+
+  }
+
+
   trait Console {
 
     def sendMessage(message: String)
@@ -312,6 +313,8 @@ object Server {
     def isOnline(name: String): Boolean = getPlayer(name).isDefined
 
     def isOnline(id: UUID): Boolean = getPlayer(id).isDefined
+
+    def sync(f: => Unit): Unit
 
   }
 

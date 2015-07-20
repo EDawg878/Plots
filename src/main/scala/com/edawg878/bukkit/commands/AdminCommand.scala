@@ -9,7 +9,7 @@ import scopt.Read
 /**
  * @author EDawg878 <EDawg878@gmail.com>
  */
-object Admin {
+object AdminCommand {
 
   sealed trait AdminOp
 

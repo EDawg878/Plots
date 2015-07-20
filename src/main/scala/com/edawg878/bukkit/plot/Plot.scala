@@ -7,6 +7,7 @@ import java.util.{Random, UUID}
 
 import com.edawg878.bukkit.plot.Plot._
 import com.edawg878.common.PlotRepository
+import com.edawg878.common.Server.Server
 import org.bukkit.Material._
 import org.bukkit.block.Biome
 import org.bukkit.block.Biome._
@@ -58,10 +59,10 @@ case class PlotWorld(name: String,
     a == b || a == plotSize - b + 1
 
   private def isBorder(x: Int, z: Int, start: Int, end: Int): Boolean =
-    isBorder(x, z, a => (start until end).exists(b => isTouchingSide(a, b)))
+    isBorder(x, z, a => (start until end).exists(isTouchingSide(a, _)))
 
   private def isBorder(x: Int, z: Int, dist: Int): Boolean =
-    isBorder(x, z, a => isTouchingSide(a, dist))
+    isBorder(x, z, isTouchingSide(_, dist))
 
   def isBorder(x: Int, z: Int): Boolean =
     isBorder(x, z, dist = pathWidth)
@@ -112,7 +113,7 @@ case class PlotId(x: Int, z: Int, world: String) {
 
   def border(w: PlotWorld): Border = {
     val r = region(w)
-    Border(buffer = 0, minX = r.minX, maxX = r.maxX, minZ = r.minZ, maxZ = r.maxZ)
+    Border(buffer = 0, knockback = 5, minX = r.minX, maxX = r.maxX, minZ = r.minZ, maxZ = r.maxZ)
   }
 
   def corners(w: PlotWorld): Corners = {
@@ -129,6 +130,9 @@ case class PlotId(x: Int, z: Int, world: String) {
     val size = w.plotSize - 1
     Region(minX = blockX, maxX = blockX + size, minZ = blockZ, maxZ = blockZ + size)
   }
+
+  def isInside(w: PlotWorld, l: Location): Boolean =
+    w.name == l.getWorld.getName && isInside(w, l.toPosition)
 
   def isInside(w: PlotWorld, p: Position): Boolean = {
     val c = corners(w)
@@ -150,7 +154,6 @@ case class PlotId(x: Int, z: Int, world: String) {
 
 object Plot {
 
-
   sealed trait Status {
     def rank: Int
     def has(that: Status): Boolean = this.rank >= that.rank
@@ -159,7 +162,8 @@ object Plot {
   case object Admin extends Status { val rank = 100 }
   case object Owner extends Status { val rank = 20 }
   case object Trusted extends Status { val rank = 5 }
-  case object Helper extends Status { val rank = 2 }
+  case object HelperOnline extends Status { val rank = 3 }
+  case object HelperOffline extends Status { val rank = 2 }
   case object NotBanned extends Status { val rank = 1 }
   case object Banned extends Status { val rank = 0 }
 
@@ -191,6 +195,7 @@ object Plot {
 
 case class Plot(id: PlotId,
                 owner: UUID,
+                alias: Option[String] = None,
                 timeClaimed: Instant,
                 expirationDate: LocalDate,
                 protect: Boolean = false,
@@ -227,43 +232,41 @@ case class Plot(id: PlotId,
     if (p.hasPermission("plot.admin")) Admin
     else if (isOwner(p)) Owner
     else if (isTrusted(p)) Trusted
-    else if (isHelper(p)) Helper
+    else if (isHelper(p)) HelperOffline
     else if (isBanned(p)) Banned
     else NotBanned
+  }
+
+  def status(s: Server, p: Player): Status = {
+    val st = status(p)
+    if (st == HelperOffline && s.isOnline(p.getUniqueId)) HelperOnline
+    else st
   }
 
   def entryStatus(p: Player): EntryStatus = {
     val pid = p.getUniqueId
     if (banned contains pid) Denied
-    else if (closed && !status(p).has(Helper)) Closed
+    else if (closed && !status(p).has(NotBanned)) Closed
     else Allowed
   }
 
   def isOwner(pid: UUID): Boolean = owner == pid
-
   def isHelper(pid: UUID): Boolean = helpers.contains(pid)
-
   def isTrusted(pid: UUID): Boolean = trusted.contains(pid)
-
+  def isAdded(pid: UUID): Boolean = isHelper(pid) || isTrusted(pid)
   def isBanned(pid: UUID): Boolean = banned.contains(pid)
 
   def isOwner(p: Player): Boolean = isOwner(p.getUniqueId)
-
   def isHelper(p: Player): Boolean = isHelper(p.getUniqueId)
-
   def isTrusted(p: Player): Boolean = isTrusted(p.getUniqueId)
-
+  def isAdded(p: Player): Boolean = isAdded(p.getUniqueId)
   def isBanned(p: Player): Boolean = isBanned(p.getUniqueId)
 
-  def isAdded(pid: UUID): Boolean = isHelper(pid) || isTrusted(pid)
-
-  def isAdded(p: Player): Boolean = isAdded(p.getUniqueId)
-
-  override def compare(that: Plot): Int = timeClaimed compareTo that.timeClaimed
+  override def compare(that: Plot): Int = this.timeClaimed compareTo that.timeClaimed
 }
 
 case class Border(buffer: Int,
-                  knockback: Int = 5,
+                  knockback: Int,
                   maxX: Int = 0,
                   minX: Int = 0,
                   maxZ: Int = 0,
@@ -331,20 +334,23 @@ object PlotManager {
       case (id, p) => ChunkRegion(w, id)
     }
     val buffer = w.plotSize * 3
+    val knockback = w.pathWidth - 1
     if (r.isEmpty) {
-      Border(buffer, minX = -buffer, maxX = buffer, minZ = -buffer, maxZ = buffer)
+      Border(buffer, knockback, minX = -buffer, maxX = buffer, minZ = -buffer, maxZ = buffer)
     } else {
       val _minX = r.map(_.minX).min
       val _maxX = r.map(_.maxX).max
       val _minZ = r.map(_.minZ).min
       val _maxZ = r.map(_.maxZ).max
-      Border(buffer, minX = _minX - buffer, maxX = _maxX + buffer, minZ = _minZ - buffer, maxZ = _maxZ + buffer)
+      Border(buffer, knockback, minX = _minX - buffer, maxX = _maxX + buffer, minZ = _minZ - buffer, maxZ = _maxZ + buffer)
     }
   }
 
 }
 
 case class PlotManager(w: PlotWorld, plots: mutable.Map[PlotId, Plot], var border: Border) {
+
+  def update(plot: Plot): Unit = plots.put(plot.id, plot)
 
   def getPlotId(loc: Location): PlotId = PlotId.of(w, loc.getBlockX, loc.getBlockZ)
 
@@ -359,7 +365,7 @@ case class PlotManager(w: PlotWorld, plots: mutable.Map[PlotId, Plot], var borde
 
   def unclaim(id: PlotId): Option[Plot] = plots.remove(id)
 
-  def getHome(bw: World, id: PlotId): Location = {
+  def getHomeLocation(bw: World, id: PlotId): Location = {
     val c = id.corners(w).bottom
     val x = c.x + w.pathWidth
     val z = c.z + w.pathWidth
@@ -369,9 +375,17 @@ case class PlotManager(w: PlotWorld, plots: mutable.Map[PlotId, Plot], var borde
     new Location(bw, x, y, z, yaw, pitch)
   }
 
-  def getHomes(p: Player): Seq[Plot] = plots.values.filter(_.isOwner(p)).toSeq.sorted
+  def getHomes(p: Player): Seq[Plot] = getHomes(p.getUniqueId)
 
-  def getHome(p: Player, n: Int): Option[Plot] = Try(getHomes(p)(n + 1)).toOption
+  def getHomes(id: UUID): Seq[Plot] = plots.values.filter(_.isOwner(id)).toSeq.sorted
+
+  def getHome(id: UUID, n: Int): Option[Plot] = Try(getHomes(id)(n - 1)).toOption
+
+  def getHome(p: Player, n: Int): Option[Plot] = getHome(p.getUniqueId, n)
+
+  def getHome(id: UUID, s: String): Option[Plot] = getHomes(id).find(_.alias.contains(s))
+
+  def getHome(p: Player, s: String): Option[Plot] = getHome(p.getUniqueId, s)
 
   def isInside(l: Location, id: PlotId): Boolean =
     l.getWorld.getName == w.name && id.isInside(w, l.toPosition)
@@ -385,6 +399,7 @@ case class PlotManager(w: PlotWorld, plots: mutable.Map[PlotId, Plot], var borde
 trait PlotHelper {
 
   def pms: World => Option[PlotManager]
+  def server: Server
 
   def isPlotWorld(w: World): Boolean = pms(w).isDefined
 
@@ -393,40 +408,55 @@ trait PlotHelper {
   def inPlotWorld(p: Player)(pm: PlotManager => Unit): Unit =
     pms(p.getWorld).map(pm).getOrElse(p.sendMessage(err"You must be in a plot world to execute this command"))
 
-  def getPlot(loc: Location): Option[Plot] =
-    pms(loc.getWorld).flatMap(pm => pm.getPlot(pm.getPlotId(loc)))
-
-  def has(st: Status, p: Player, loc: Location): Result = {
-
-    def failure(s: String*): Result = {
-      s.foreach(p sendMessage)
-      Error
+  def withPlotStatus(p: Player, st: Status, s: Server, err: Player => Unit)(f: (PlotManager, Plot) => Unit): Unit =
+    inPlotWorld(p) { pm =>
+      pm.getPlot(pm.getPlotId(p.getLocation)).fold(p.sendMessage(err"No plot found")) { plot =>
+        if (plot.status(s, p).has(st)) f(pm, plot)
+        else err(p)
+      }
     }
 
+ def getPlot(loc: Location): Option[Plot] =
+   pms(loc.getWorld).flatMap(pm => pm.getPlot(pm.getPlotId(loc)))
+
+  private def failure(p: Player, s: String*): Result = { s.foreach(p sendMessage); Error }
+
+  def has(st: Status, p: Player, loc: Location, s: Server): Result = {
     pms(loc.getWorld).fold[Result](Invalid) { pm =>
-      if (!pm.w.buildOnFloor && loc.getBlockY <= 0) {
-        failure(err"You cannot build on the floor level")
-      } else {
-        if (p.hasPermission("plot.admin")) True
-        else {
-          val id = pm.getPlotId(loc)
-          pm.getPlot(id).fold[Result](failure(err"This plot has no owner")) { plot =>
-            if (!plot.roadAccess && (pm.w.isBorder(loc) || pm.w.isPath(loc))) {
-              failure(err"You don't have permission to build on this road")
-            } else {
-              st match {
-                case Helper =>
-                  Result(plot.isOwner(p) || plot.isHelper(p) || plot.isTrusted(p))
-                case Trusted =>
-                  Result(plot.isOwner(p) || plot.isTrusted(p))
-                case Banned =>
-                  Result(plot.isBanned(p))
-                case _ =>
+      if (!pm.w.buildOnFloor && loc.getBlockY <= 0) failure(p, err"You cannot build on the floor level")
+      else {
+        if (p hasPermission "plot.admin") True
+        else pm.getPlot(pm.getPlotId(loc))
+            .fold(failure(p, err"You cannot build here")){ plot =>
+          if (!plot.roadAccess && (pm.w.isBorder(loc) || pm.w.isPath(loc))) {
+            failure(p, err"You cannot build here")
+          } else {
+            st match {
+              case HelperOnline =>
+                if (plot.isOwner(p) || plot.isTrusted(p)) True
+                else if (plot.isHelper(p)) {
+                  if (s.isOnline(plot.owner)) True
+                  else {
+                    p.sendMessage(err"You cannot modify the plot while its owner is offline unless you are trusted")
+                    Error
+                  }
+                } else {
                   False
-              }
+                }
+              case HelperOffline =>
+                Result(plot.isOwner(p) || plot.isHelper(p) || plot.isTrusted(p))
+              case Owner =>
+                Result(plot.isOwner(p))
+              case Trusted =>
+                Result(plot.isOwner(p) || plot.isTrusted(p))
+              case Banned =>
+                Result(plot.isBanned(p))
+              case NotBanned =>
+                Result(!plot.isBanned(p))
+              case _ =>
+                False
             }
-          }
-        }
+          }}
       }
     }
   }
@@ -443,9 +473,9 @@ class PlotGenerator(w: PlotWorld, maxY: Int) extends ChunkGenerator {
 
     for {
       x <- 0 until 16
-      locX = ((cx << 4) + x)
+      locX = (cx << 4) + x
       z <- 0 until 16
-      locZ = ((cz << 4) + z)
+      locZ = (cz << 4) + z
     } yield setBlocks(x, z, locX, locZ)
 
     def setBlocks(x: Int, z: Int, locX: Int, locZ: Int): Unit = {

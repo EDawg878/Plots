@@ -3,6 +3,7 @@ package com.edawg878.bukkit.listener
 import com.edawg878.bukkit.plot.Plot._
 import com.edawg878.bukkit.plot._
 import com.edawg878.common.PlotRepository
+import com.edawg878.common.Server.Server
 import org.bukkit.block.{BlockState, Block}
 import org.bukkit.event.entity.{EntityDamageByEntityEvent, EntityExplodeEvent, EntityChangeBlockEvent}
 import org.bukkit.event.hanging.{HangingBreakByEntityEvent, HangingPlaceEvent}
@@ -25,19 +26,19 @@ import scala.collection.JavaConversions._
 /**
  * @author EDawg878 <EDawg878@gmail.com>
  */
-class PlotListener(val pms: World => Option[PlotManager], plotDb: PlotRepository) extends Listener with PlotHelper {
+class PlotListener(val pms: World => Option[PlotManager], plotDb: PlotRepository, val server: Server, val bukkitServer: org.bukkit.Server) extends Listener with PlotHelper {
 
   def cancel(st: Status, p: Player, loc: Location, f: Player => Unit): Boolean = {
     if (!isPlotWorld(loc)) false
     else {
-      val r = has(st, p, loc)
+      val r = has(st, p, loc, server)
       val cancel = r != True
       if (cancel && r != Error) f(p)
       cancel
     }
   }
 
-  def cancel(ev: Cancellable, p: Player, loc: Location, st: Status = Helper, s: String = err"You cannot build here"): Unit = {
+  def cancel(ev: Cancellable, p: Player, loc: Location, st: Status = HelperOnline, s: String = err"You cannot build here"): Unit = {
     if (cancel(st, p, loc, _.sendMessage(s)))
       ev.setCancelled(true)
   }
@@ -45,10 +46,13 @@ class PlotListener(val pms: World => Option[PlotManager], plotDb: PlotRepository
   def cancelOrResetExpiration(ev: Cancellable, p: Player, loc: Location): Unit = {
     pms(loc.getWorld) foreach { pm =>
       cancel(ev, p, loc)
-      if (!ev.isCancelled) {
-        getPlot(loc).flatMap(_.resetExpire)
-          .foreach(plotDb.save(pm.w, _))
-      }
+      if (!ev.isCancelled)
+        pm.getPlot(pm.getPlotId(loc))
+          .flatMap(_.resetExpire)
+          .foreach{ plot =>
+            pm.update(plot)
+            plotDb.save(pm.w, plot)
+          }
     }
   }
 
@@ -109,12 +113,12 @@ class PlotListener(val pms: World => Option[PlotManager], plotDb: PlotRepository
       .add(face.getModX, face.getModY, face.getModZ)
       .getBlock
       .getLocation
-    cancel(ev, ev.getPlayer, loc, Trusted, "You must be trusted to this plot in order to empty buckets")
+    cancel(ev, ev.getPlayer, loc, Trusted, err"You must be trusted to the plot in order to empty buckets")
   }
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
   def onPlayerBucketFill(ev: PlayerBucketFillEvent): Unit =
-    cancel(ev, ev.getPlayer, ev.getBlockClicked.getLocation, Trusted, "You must be trusted to this plot in order to fill buckets")
+    cancel(ev, ev.getPlayer, ev.getBlockClicked.getLocation, Trusted, err"You must be trusted to the plot in order to fill buckets")
 
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
@@ -160,7 +164,7 @@ class PlotListener(val pms: World => Option[PlotManager], plotDb: PlotRepository
   }
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
-  def onBlockPistonExtend(ev: BlockPistonExtendEvent): Unit = onPistonMove(ev, ev.getBlocks.toList)
+  def onBlockPistonExtend(ev: BlockPistonExtendEvent): Unit = onPistonMove(ev, ev.getBlocks.asScala)
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
   def onBlockPistonRetract(ev: BlockPistonRetractEvent): Unit = onPistonMove(ev, ev.getBlocks.asScala)
@@ -183,7 +187,7 @@ class PlotListener(val pms: World => Option[PlotManager], plotDb: PlotRepository
   @EventHandler(priority = HIGH, ignoreCancelled = true)
   def onBlockIgnite(ev: BlockIgniteEvent): Unit = {
     Option(ev.getBlock) foreach { b =>
-      cancel(ev, ev.getPlayer, b.getLocation, Trusted, "You must be trusted to this plot in order to ignite blocks")
+      cancel(ev, ev.getPlayer, b.getLocation, Trusted, err"You must be trusted to the plot in order to ignite blocks")
     }
   }
 
@@ -228,9 +232,9 @@ class PlotListener(val pms: World => Option[PlotManager], plotDb: PlotRepository
     val loc = ev.getEgg.getLocation
     if (isPlotWorld(loc)) {
       val p = ev.getPlayer
-      val r = has(Trusted, p, loc)
+      val r = has(Trusted, p, loc, server)
       if (r != True) {
-        if (r != Error) p.sendMessage(err"You must be trusted to this plot in order to throw eggs")
+        if (r != Error) p.sendMessage(err"You must be trusted to the plot in order to throw eggs")
         ev.setHatching(false)
       }
     }
@@ -238,7 +242,8 @@ class PlotListener(val pms: World => Option[PlotManager], plotDb: PlotRepository
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
   def onBlockBurn(ev: BlockBurnEvent): Unit = {
-    if (isPlotWorld(ev.getBlock.getLocation)) ev.setCancelled(true)
+    if (isPlotWorld(ev.getBlock.getLocation))
+      ev.setCancelled(true)
   }
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
@@ -258,19 +263,19 @@ class PlotListener(val pms: World => Option[PlotManager], plotDb: PlotRepository
       || ev.getFrom.getBlockZ != ev.getTo.getBlockZ) {
       pms(ev.getTo.getWorld) foreach { pm =>
         val p = ev.getPlayer
-        def knockback(): Unit = ev.setTo(pm.border.knockback(ev.getTo))
+        def knockback(b: Border): Unit = ev.setTo(pm.border.knockback(ev.getTo))
         if (pm.border.isPast(ev.getTo)) {
-          knockback()
+          knockback(pm.border)
           p.sendMessage(err"You have reached the end of this world")
         } else {
           val id = pm.getPlotId(ev.getTo)
           pm.getPlot(id) foreach { plot =>
             plot.entryStatus(p) match {
               case Denied =>
-                knockback()
+                knockback(plot.id.border(pm.w))
                 p.sendMessage(err"You are banned from this plot")
               case Closed =>
-                knockback()
+                knockback(plot.id.border(pm.w))
                 p.sendMessage(err"This plot is closed to visitors")
               case _ =>
             }
@@ -286,13 +291,13 @@ class PlotListener(val pms: World => Option[PlotManager], plotDb: PlotRepository
       Option(ev.getPlayer) foreach { p =>
         val id = pm.getPlotId(ev.getTo)
         pm.getPlot(id) foreach { plot =>
-          if (!plot.status(p).has(Helper)) {
+          if (!plot.status(p).has(NotBanned)) {
             if (plot.isBanned(p)) {
               ev.setCancelled(true)
-              p.sendMessage(err"You are banned from that plot")
+              p.sendMessage(err"You cannot teleport to a plot that you are banned from")
             } else if (plot.closed && !plot.isAdded(p)) {
               ev.setCancelled(true)
-              p.sendMessage(err"That plot is closed to visitors")
+              p.sendMessage(err"You cannot teleport to a plot that is closed to visitors")
             }
           }
         }

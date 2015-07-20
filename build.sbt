@@ -29,12 +29,6 @@ libraryDependencies ++= Seq(
   "net.md-5" % "bungeecord-api" % "1.8-SNAPSHOT",
   "org.scalatest" % "scalatest_2.11" % "2.2.1" % "test",
   "org.reactivemongo" %% "play2-reactivemongo" % "0.10.5.0.akka23",
-  "com.softwaremill.macwire" %% "macros" % "0.8.0",
-  "com.softwaremill.macwire" %% "runtime" % "0.8.0",
-  //"com.softwaremill.quicklens" %% "quicklens" % "1.2",
-  "com.typesafe.akka" %% "akka-actor" % "2.3.6",
-  "com.typesafe.akka" %% "akka-contrib" % "2.3.6",
-  "com.typesafe.play" %% "play-json" % "2.3.4",
-  "org.rogach" %% "scallop" % "0.9.5"
+  "com.typesafe.play" %% "play-json" % "2.3.4"
   //"com.github.scopt" %% "scopt" % "3.3.0"
 )

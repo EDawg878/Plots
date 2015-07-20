@@ -33,14 +33,15 @@ case class PlayTime(firstLogin: Instant = Instant.now,
 
 case class PlayerData(id: UUID,
                       name: String,
-                      usernames: mutable.LinkedHashSet[String] = mutable.LinkedHashSet(),
+                      usernames: mutable.Set[String] = mutable.LinkedHashSet(),
                       displayName: Option[String] = None,
                       group: Group = Default,
                       perks: Set[String] = Set(),
                       tier: Int = 0,
                       plotLimit: Int = 1,
                       voteCredits: Int = 0,
-                      playTime: PlayTime = PlayTime()) {
+                      playTime: PlayTime = PlayTime())
+  extends Ordered[PlayerData] {
 
   def this(p: Player) = this(id = p.id, name = p.name)
 
@@ -54,25 +55,26 @@ case class PlayerData(id: UUID,
     }
   }
 
-  def displayPlayTime(online: Boolean): String = {
+  def playTimeToString(online: Boolean): String = {
     val time = DateUnit.format(playTime.duration(online)).mkString(" ")
     val first = playTime.firstLogin.atZone(TimeZone.Default).toLocalDate.toString
     info"$name has played for $time since $first"
   }
 
-  def displayTier: String = info"$name has tier $tier"
+  def tierToString: String = info"$name has tier $tier"
 
-  def displayCredits: String = {
+  def creditsToString: String = {
     if (voteCredits == 0) info"$name has no credits"
     else if (voteCredits == 1) info"$name has $voteCredits credit"
     else info"$name has $voteCredits credits"
   }
 
-  def displayPerks: String = {
+  def perksToString: String = {
     if (perks.isEmpty) info"$name has no perks"
     else info"$name has the following perks: ${perks.mkString(", ")}"
   }
 
-  def displayGroup: String = info"$name is in group ${group.name}"
+  def groupToString: String = info"$name is in group ${group.name}"
 
+  override def compare(that: PlayerData): Int = this.playTime.lastSeen compareTo that.playTime.lastSeen
 }

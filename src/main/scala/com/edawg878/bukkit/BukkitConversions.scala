@@ -51,12 +51,14 @@ object BukkitConversions {
 
   }
 
-  implicit class BukkitServer(server: org.bukkit.Server) {
+  implicit class BukkitServer(s: org.bukkit.Server) {
 
-    def toServer: Server = new Server {
-      def getPlayer(name: String): Option[Player] = Option(server.getPlayer(name)).map(_.toPlayer)
+    def toServer(p: org.bukkit.plugin.Plugin): Server = new Server {
+      def getPlayer(name: String): Option[Player] = Option(s.getPlayer(name)).map(_.toPlayer)
 
-      def getPlayer(id: UUID): Option[Player] = Option(server.getPlayer(id)).map(_.toPlayer)
+      def getPlayer(id: UUID): Option[Player] = Option(s.getPlayer(id)).map(_.toPlayer)
+
+      def sync(f: => Unit): Unit = s.getScheduler.scheduleSyncDelayedTask(p, new Runnable { def run(): Unit = f })
     }
 
   }

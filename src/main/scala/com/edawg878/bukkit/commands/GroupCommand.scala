@@ -13,7 +13,7 @@ import scala.concurrent.Future
 /**
  * @author EDawg878 <EDawg878@gmail.com>
  */
-object Group {
+object GroupCommand {
 
   case class Config(op: GroupOp, data: Future[PlayerData], group: Group)
 
@@ -40,9 +40,9 @@ object Group {
       c.op match {
         case Promote | Demote | Set =>
           val updated = data.copy(group = c.op.using(data.group, c.group))
-          sender.sendMessage(updated.displayGroup)
+          sender.sendMessage(updated.perksToString)
           db.save(updated)
-        case Show => sender.sendMessage(data.displayGroup)
+        case Show => sender.sendMessage(data.perksToString)
       }
     }
   }

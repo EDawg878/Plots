@@ -12,7 +12,7 @@ import scala.concurrent.Future
 /**
  * @author EDawg878 <EDawg878@gmail.com>
  */
-object Credit {
+object CreditCommand {
 
   case class Config(op: IntOp, data: Future[PlayerData], credits: Int)
 
@@ -39,9 +39,9 @@ object Credit {
       c.op match {
         case Add | Subtract | Set =>
           val updated = data.copy(voteCredits = c.op.using(data.voteCredits, c.credits).max(0))
-          sender.sendMessage(updated.displayCredits)
+          sender.sendMessage(updated.perksToString)
           db.save(updated)
-        case Show => sender.sendMessage(data.displayCredits)
+        case Show => sender.sendMessage(data.perksToString)
       }
     }
   }

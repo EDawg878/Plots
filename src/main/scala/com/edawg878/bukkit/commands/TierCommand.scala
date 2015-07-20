@@ -13,7 +13,7 @@ import scala.concurrent.Future
 /**
  * @author EDawg878 <EDawg878@gmail.com>
  */
-object Tier {
+object TierCommand {
 
   case class Config(op: IntOp, data: Future[PlayerData], tier: Int)
 
@@ -40,9 +40,9 @@ object Tier {
       c.op match {
         case Add | Subtract | Set =>
           val updated = data.copy(tier = c.op.using(data.tier, c.tier).clamp(0, 10))
-          sender.sendMessage(updated.displayTier)
+          sender.sendMessage(updated.tierToString)
           db.save(updated)
-        case Show => sender.sendMessage(data.displayTier)
+        case Show => sender.sendMessage(data.tierToString)
       }
     }
 

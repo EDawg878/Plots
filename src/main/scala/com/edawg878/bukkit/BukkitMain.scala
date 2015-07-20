@@ -26,7 +26,7 @@ class BukkitMain extends JavaPlugin with Listener {
   import bukkitModule._
 
   override def onLoad(): Unit = {
-    db.ensureIndexes()
+    databases.foreach(_.ensureIndexes())
   }
 
   def registerCommand(command: Command[CommandSender]): Unit = {
@@ -57,23 +57,23 @@ class BukkitMain extends JavaPlugin with Listener {
   @EventHandler
   def onJoin(event: PlayerJoinEvent) {
     val player = event.getPlayer.toPlayer
-    db.find(player.id) onComplete {
+    playerDb.find(player.id) onComplete {
       case Success(data) =>
         val updated = data.updateName(player.name)
           .copy(playTime = data.playTime.login)
-        db.save(updated)
+        playerDb.save(updated)
       case _ =>
-        db.insert(new PlayerData(player))
+        playerDb.insert(new PlayerData(player))
     }
   }
 
   @EventHandler
   def onQuit(event: PlayerQuitEvent): Unit = {
     val player = event.getPlayer
-    db.find(player.getUniqueId) onSuccess {
+    playerDb.find(player.getUniqueId) onSuccess {
       case data =>
         val updated = data.copy(playTime = data.playTime.logout)
-        db.save(updated)
+        playerDb.save(updated)
     }
   }
 

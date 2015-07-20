@@ -48,9 +48,9 @@ object Readers {
 
     trait BukkitReaders extends PlayerReader[Player] {
 
-      override def getPlayer(name: String): Player = server.getPlayerExact(name)
+      override def getPlayer(name: String): Player = bukkitServer.getPlayerExact(name)
 
-      def server: Server
+      def bukkitServer: Server
 
     }
 
