@@ -7,6 +7,7 @@ import com.edawg878.bukkit.commands.PerkCommand.PerkCommand
 import com.edawg878.bukkit.commands.PlotCommand.PlotCommand
 import com.edawg878.bukkit.commands.TierCommand.TierCommand
 import com.edawg878.bukkit.listener.PlotListener
+import com.edawg878.bukkit.plot.PlotClearConversation.PlotClearConversation
 import com.edawg878.bukkit.plot.{PlotWorld, PlotManager, PlotWorldConfig}
 import org.bukkit.World
 import org.bukkit.command.CommandSender
@@ -47,7 +48,8 @@ object Modules {
     val playTimeCommand = new PlayTimeCommand(playerDb, server)
     val seenCommand = new SeenCommand(playerDb, server)
     val whoIsCommand = new WhoIsCommand(playerDb, server)
-    val plotCommand = new PlotCommand(getPlotManager, playerDb, plotDb, server, bukkitServer)
+    val plotClearConversation = new PlotClearConversation(getPlotManager, bukkitPlugin, plotDb)
+    val plotCommand = new PlotCommand(getPlotManager, playerDb, plotDb, server, bukkitServer, plotClearConversation)
 
     val commands = Seq[Command[CommandSender]](tierCommand, perkCommand, creditCommand, groupCommand, playTimeCommand,
       seenCommand, whoIsCommand, plotCommand)

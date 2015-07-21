@@ -198,6 +198,7 @@ trait BSONHandlers {
         "owner" -> self.owner,
         "alias" -> self.alias,
         "timeClaimed" -> self.timeClaimed,
+        "lastCleared" -> self.lastCleared,
         "expirationDate" -> self.expirationDate,
         "protected" -> self.protect,
         "closed" -> self.closed,
@@ -214,6 +215,7 @@ trait BSONHandlers {
       val _owner = doc.getAs[UUID]("owner").get
       val _alias = doc.getAs[String]("alias")
       val _timeClaimed = doc.getAs[Instant]("timeClaimed").get
+      val _lastCleared = doc.getAs[Instant]("lastCleared")
       val _expirationDate = doc.getAs[LocalDate]("expirationDate").get
       val _protected = doc.getAs[Boolean]("protected").get
       val _closed = doc.getAs[Boolean]("closed").get
@@ -226,6 +228,7 @@ trait BSONHandlers {
         owner = _owner,
         alias = _alias,
         timeClaimed = _timeClaimed,
+        lastCleared = _lastCleared,
         expirationDate = _expirationDate,
         protect = _protected,
         closed = _closed,

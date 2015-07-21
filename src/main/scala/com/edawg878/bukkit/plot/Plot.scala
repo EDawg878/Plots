@@ -201,6 +201,7 @@ case class Plot(id: PlotId,
                 protect: Boolean = false,
                 closed: Boolean = false,
                 roadAccess: Boolean = false,
+                lastCleared: Option[Instant] = None,
                 helpers: Set[UUID] = Set(),
                 trusted: Set[UUID] = Set(),
                 banned: Set[UUID] = Set())
@@ -214,11 +215,9 @@ case class Plot(id: PlotId,
     else Some(copy(expirationDate = updated))
   }
 
+  def open: Boolean = !closed
+
   def isExpired: Boolean = !protect && LocalDate.now.isAfter(expirationDate)
-
-  def removeAdded(id: UUID): Plot = copy(helpers = helpers - id, trusted = trusted - id)
-
-  def removeBanned(id: UUID): Plot = copy(banned = banned - id)
 
   def clearAdded: Plot = copy(helpers = Set(), trusted = Set())
 
@@ -227,6 +226,9 @@ case class Plot(id: PlotId,
   def toggleRoadAccess: Plot = copy(roadAccess = !roadAccess)
 
   def ids: Set[UUID] = helpers ++ trusted ++ banned + owner
+
+  def canClear(amt: TemporalAmount): Boolean =
+    lastCleared.fold(true)(t => Instant.now().isAfter(t.plus(amt)))
 
   def status(p: Player): Status = {
     if (p.hasPermission("plot.admin")) Admin
@@ -408,10 +410,10 @@ trait PlotHelper {
   def inPlotWorld(p: Player)(pm: PlotManager => Unit): Unit =
     pms(p.getWorld).map(pm).getOrElse(p.sendMessage(err"You must be in a plot world to execute this command"))
 
-  def withPlotStatus(p: Player, st: Status, s: Server, err: Player => Unit)(f: (PlotManager, Plot) => Unit): Unit =
+  def withPlotStatus(p: Player, st: Status, err: Player => Unit)(f: (PlotManager, Plot) => Unit): Unit =
     inPlotWorld(p) { pm =>
       pm.getPlot(pm.getPlotId(p.getLocation)).fold(p.sendMessage(err"No plot found")) { plot =>
-        if (plot.status(s, p).has(st)) f(pm, plot)
+        if (plot.status(server, p).has(st)) f(pm, plot)
         else err(p)
       }
     }

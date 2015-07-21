@@ -1,9 +1,12 @@
 package com.edawg878.bukkit.commands
 
+import java.time.Duration
+import java.util
 import java.util.UUID
 
 import com.edawg878.bukkit.plot.Plot._
-import com.edawg878.bukkit.plot.{PlotId, PlotWorld, PlotHelper, PlotManager}
+import com.edawg878.bukkit.plot.PlotClearConversation.PlotClearConversation
+import com.edawg878.bukkit.plot._
 import com.edawg878.common.BukkitCommandHandler.{BukkitCommand, BukkitOptionParser}
 import com.edawg878.common.Readers.Bukkit.BukkitReaders
 import com.edawg878.common.Server.Server
@@ -11,9 +14,13 @@ import com.edawg878.common.{PlotRepository, PlayerRepository, CommandMeta}
 import org.bukkit.World
 import org.bukkit.ChatColor._
 import org.bukkit.command.CommandSender
+import org.bukkit.conversations._
 import org.bukkit.entity.Player
 import com.edawg878.common.Color.Formatter
 import com.edawg878.common.Conversions._
+import org.bukkit.plugin.Plugin
+import scopt.Read
+import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext.Implicits.global
 
 import scala.concurrent.Future
@@ -25,6 +32,7 @@ import scala.util.Try
 object PlotCommand {
 
   sealed trait SubCommand
+
   case object Info extends SubCommand
   case object Claim extends SubCommand
   case object Home extends SubCommand
@@ -36,15 +44,24 @@ object PlotCommand {
   case object Kick extends SubCommand
   case object Unban extends SubCommand
   case object Dispose extends SubCommand
+  case object Open extends SubCommand
+  case object Close extends SubCommand
+  case object Protect extends SubCommand
+  case object Auto extends SubCommand
+  case object Clear extends SubCommand
+  case object Reset extends SubCommand
+  case object Teleport extends SubCommand
 
-  case class Config(sub: Option[SubCommand], player: Player, target: String, home: String)
+  case class Config(sub: Option[SubCommand], player: Player, target: String, home: String, id: String) {
+    def pid: UUID = player.getUniqueId
+  }
 
-  class PlotCommand(val pms: World => Option[PlotManager], playerDb: PlayerRepository, plotDb: PlotRepository, val server: Server, val bukkitServer: org.bukkit.Server) extends BukkitCommand[Config]
+  class PlotCommand(val pms: World => Option[PlotManager], playerDb: PlayerRepository, plotDb: PlotRepository, val server: Server, val bukkitServer: org.bukkit.Server, plotClearConversation: PlotClearConversation) extends BukkitCommand[Config]
   with PlotHelper with BukkitReaders {
 
     def meta: CommandMeta = CommandMeta(cmd = "plot", perm = None, aliases = "p", "plotme")
 
-    val default: Config = Config(sub = None, player = null, target = null, home = "1")
+    val default: Config = Config(sub = None, player = null, target = null, home = "1", id = null)
 
     val parser = new BukkitOptionParser[Config]("/plot") {
       cmd("info", Set("i")) action { (_, c) => c.copy(sub = Some(Info))
@@ -93,6 +110,31 @@ object PlotCommand {
         c.copy(sub = Some(Unban))
       } text "unban a player from the plot" children (
         arg[String]("<player|uuid>") required() action { (x, c) => c.copy(target = x)}
+      )
+      cmd("open") action { (_, c) =>
+        c.copy(sub = Some(Open))
+      } text "open the plot to visitors"
+      cmd("close") action { (_, c) =>
+        c.copy(sub = Some(Close))
+      } text "close the plot to visitors"
+      cmd("protect") action { (_, c) =>
+        c.copy(sub = Some(Protect))
+      } text "protect the plot from expiration and prevent it from being cleared"
+      cmd("auto") action { (_, c) =>
+        c.copy(sub = Some(Auto))
+      } text "claim the next available plot"
+      cmd("clear") action { (_, c) =>
+        c.copy(sub = Some(Clear))
+      } text "regenerate the plot"
+      cmd("reset") action { (_, c) =>
+        c.copy(sub = Some(Reset))
+      } text "regenerate the plot and dispose of it"
+      cmd("teleport", Set("tp")) action { (_, c) =>
+        c.copy(sub = Some(Teleport))
+      } text "teleport to plot coordinates" children(
+        arg[String]("<id>") required() action { (x, c) =>
+          c.copy(id = x)
+        } text "plot coordinates x;z"
       )
       checkConfig { c =>
         if (c.sub.isDefined) success else failure("You must specify a subcommand")
@@ -148,11 +190,9 @@ object PlotCommand {
               if (plot.isEmpty || expired) {
                 canClaimPlot(p, pm).map { canClaim =>
                   if (canClaim) {
-                    if (expired) server.sync {
-                      pm.clear(id)
-                    }
-                    val newPlot = pm.claim(p, id)
-                    plotDb.insert(pm.w, newPlot)
+                    if (expired) server.sync { pm.clear(id) }
+                    val plot = pm.claim(p, id)
+                    plotDb.save(pm.w, plot)
                     p.sendMessage(info"Claimed plot ($id)")
                   } else {
                     p.sendMessage(err"You have reached your maximum number of plots")
@@ -165,7 +205,7 @@ object PlotCommand {
           }
         case Dispose =>
           asPlayer(sender) { p =>
-            withPlotStatus(p, Admin, server, _.sendMessage(err"You do not have permission to dispose of the plot")) { (pm, plot) =>
+            withPlotStatus(p, Admin, _.sendMessage(err"You do not have permission to dispose of the plot")) { (pm, plot) =>
               pm.unclaim(plot.id)
               plotDb.delete(pm.w, plot.id)
               p.sendMessage(info"Disposed plot (${plot.id})")
@@ -189,61 +229,67 @@ object PlotCommand {
           }
         case Add =>
           asPlayer(sender) { p =>
-            withPlotStatus(p, Owner, server, _.sendMessage(err"You do not have permission to add players to the plot")) { (pm, plot) =>
-              if (plot.isOwner(c.player)) p.sendMessage(err"You cannot add yourself to the plot")
-              else {
-                if (plot.isHelper(c.player)) {
-                  p.sendMessage(err"${c.player.getName} is already added to the plot")
-                } else {
-                  val added = plot.copy(helpers = plot.helpers + c.player.getUniqueId)
-                  pm.update(added)
-                  plotDb.save(pm.w, added)
-                  p.sendMessage(info"Added ${c.player.getName} to the plot")
-                }
+            withPlotStatus(p, Owner, _.sendMessage(err"You do not have permission to add players to the plot")) { (pm, plot) =>
+              if (plot.isOwner(c.player)) {
+                p.sendMessage(err"You cannot add yourself to the plot")
+              } else if (plot.isHelper(c.player)) {
+                p.sendMessage(err"${c.player.getName} is already added to the plot")
+              } else {
+                val added = plot.copy(helpers = plot.helpers + c.pid)
+                pm.update(added)
+                plotDb.save(pm.w, added)
+                p.sendMessage(info"Added ${c.player.getName} to the plot")
               }
             }
           }
         case Trust =>
           asPlayer(sender) { p =>
-            withPlotStatus(p, Owner, server, _.sendMessage(err"You do not have permission to trust players to the plot")) { (pm, plot) =>
-              if (plot.isOwner(c.player)) p.sendMessage(err"You cannot trust yourself to the plot")
-              else {
-                if (plot.isTrusted(c.player)) {
-                  p.sendMessage(err"${c.player.getName} is already trusted to the plot")
-                } else {
-                  val trusted = plot.copy(trusted = plot.trusted + c.player.getUniqueId)
-                  pm.update(trusted)
-                  plotDb.save(pm.w, trusted)
-                  p.sendMessage(info"Trusted ${c.player.getName} to the plot")
-                }
+            withPlotStatus(p, Owner, _.sendMessage(err"You do not have permission to trust players to the plot")) { (pm, plot) =>
+              if (plot.isOwner(c.player)) {
+                p.sendMessage(err"You cannot trust yourself to the plot")
+              } else if (plot.isTrusted(c.player)) {
+                p.sendMessage(err"${c.player.getName} is already added to the plot")
+              } else {
+                val trusted = plot.copy(trusted = plot.trusted + c.pid, helpers = plot.helpers - c.pid)
+                pm.update(trusted)
+                plotDb.save(pm.w, trusted)
+                p.sendMessage(info"Trusted ${c.player.getName} to the plot")
               }
             }
           }
         case Ban =>
           asPlayer(sender) { p =>
-            withPlotStatus(p, Owner, server, _.sendMessage(err"You do not have permission to ban players from the plot")) { (pm, plot) =>
-              if (p.getUniqueId == c.player.getUniqueId) p.sendMessage(err"You cannot ban yourself from the plot")
-              else if (plot.isAdded(c.player)) p.sendMessage(err"You cannot ban a player who is added to the plot")
-              else {
-                if (plot.isBanned(c.player)) {
+            withPlotStatus(p, Owner, _.sendMessage(err"You do not have permission to ban players from the plot")) { (pm, plot) =>
+                if (c.player.hasPermission("plot.ban.bypass")) {
+                  p.sendMessage(err"${c.player.getName} cannot be kicked from the plot")
+                } else if (p.getUniqueId == c.pid) {
+                  p.sendMessage(err"You cannot ban yourself from the plot")
+                } else if (plot.isOwner(c.pid)) {
+                  p.sendMessage(err"You cannot ban the plot owner")
+                } else if (plot.isBanned(c.pid)) {
                   p.sendMessage(err"${c.player.getName} is already banned from the plot")
                 } else {
-                  val banned = plot.copy(banned = plot.banned + c.player.getUniqueId)
+                  val banned = plot.copy(banned = plot.banned + c.pid, helpers = plot.helpers - c.pid, trusted = plot.trusted - c.pid)
                   pm.update(banned)
                   plotDb.save(pm.w, banned)
                   val l = c.player.getLocation
                   if (plot.id.isInside(pm.w, l)) c.player.teleport(plot.id.border(pm.w).knockback(l))
                   p.sendMessage(info"Banned ${c.player.getName} from the plot")
-                }
               }
             }
           }
         case Kick =>
           asPlayer(sender) { p =>
-            withPlotStatus(p, Trusted, server, _.sendMessage(err"You do not have permission to kick players from the plot")) { (pm, plot) =>
-              if (p.getUniqueId == c.player.getUniqueId) p.sendMessage(err"You cannot kick yourself from the plot")
-              else if (plot.isTrusted(c.player)) p.sendMessage(err"You cannot kick a player who is trusted to the plot")
-              else if (plot.id.isInside(pm.w, c.player.getLocation)) {
+            withPlotStatus(p, Trusted, _.sendMessage(err"You do not have permission to kick players from the plot")) { (pm, plot) =>
+              if (c.player.hasPermission("plot.kick.bypass")) {
+                p.sendMessage(err"${c.player.getName} cannot be kicked from the plot")
+              } else if (p.getUniqueId == c.pid) {
+                p.sendMessage(err"You cannot kick yourself from the plot")
+              } else if (plot.isOwner(c.pid)) {
+                p.sendMessage(err"You cannot kick the plot owner")
+              } else if (plot.isTrusted(c.pid)) {
+                p.sendMessage(err"You cannot kick a player who is trusted to the plot")
+              } else if (plot.id.isInside(pm.w, c.player.getLocation)) {
                 c.player.teleport(c.player.getWorld.getSpawnLocation)
                 c.player.sendMessage(err"You have been kicked from the plot by ${p.getName}")
               } else {
@@ -253,10 +299,10 @@ object PlotCommand {
           }
         case Remove =>
           asPlayer(sender) { p =>
-            withPlotStatus(p, Owner, server, _.sendMessage(err"You do not have permission to remove players from the plot")) { (pm, plot) =>
+            withPlotStatus(p, Owner, _.sendMessage(err"You do not have permission to remove players from the plot")) { (pm, plot) =>
               parseUniqueId(p, c.target) { pid =>
                 if (plot.isAdded(pid)) {
-                  val removed = plot.removeAdded(pid)
+                  val removed = plot.copy(helpers = plot.helpers - pid, trusted = plot.trusted - pid)
                   pm.update(removed)
                   plotDb.save(pm.w, removed)
                   p.sendMessage(info"Removed ${c.target} from the plot")
@@ -268,10 +314,10 @@ object PlotCommand {
           }
         case Unban =>
           asPlayer(sender) { p =>
-            withPlotStatus(p, Owner, server, _.sendMessage(err"You do not have permission to unban players from the plot")) { (pm, plot) =>
+            withPlotStatus(p, Owner, _.sendMessage(err"You do not have permission to unban players from the plot")) { (pm, plot) =>
               parseUniqueId(p, c.target) { pid =>
                 if (plot.isBanned(pid)) {
-                  val removed = plot.removeBanned(pid)
+                  val removed = plot.copy(banned = plot.banned - pid)
                   pm.update(removed)
                   plotDb.save(pm.w, removed)
                   p.sendMessage(info"Unbanned ${c.target} from the plot")
@@ -281,11 +327,116 @@ object PlotCommand {
               }
             }
           }
-        case _ =>
+        case Open =>
+          asPlayer(sender) { p =>
+            withPlotStatus(p, Owner, _.sendMessage(err"You do not have permission to open the plot")) { (pm, plot) =>
+              if (plot.open) {
+                p.sendMessage(err"The plot is already open to visitors")
+              } else {
+                val opened = plot.copy(closed = false)
+                pm.update(opened)
+                plotDb.save(pm.w, opened)
+                p.sendMessage(info"The plot has been opened to visitors")
+              }
+            }
+          }
+        case Close =>
+          asPlayer(sender) { p =>
+            withPlotStatus(p, Owner, _.sendMessage(err"You do not have permission to close the plot")) { (pm, plot) =>
+              if (plot.closed) {
+                p.sendMessage(err"The plot is already closed to visitors")
+              } else {
+                val closed = plot.copy(closed = true)
+                pm.update(closed)
+                plotDb.save(pm.w, closed)
+                p.sendMessage(info"The plot has been closed to visitors")
+              }
+            }
+          }
+        case Protect =>
+          asPlayer(sender) { p =>
+            withPlotStatus(p, Admin, _.sendMessage(err"You do not have permission to protect the plot")) { (pm, plot) =>
+              val (updated, s) =
+                if (plot.protect) (plot.copy(protect = false), info"The plot has been protected")
+                else (plot.copy(protect = true), info"The plot is no longer protected")
+              pm.update(updated)
+              plotDb.save(pm.w, updated)
+              p.sendMessage(s)
+            }
+          }
+        case Auto =>
+          asPlayer(sender) { p =>
+            inPlotWorld(p) { pm =>
+              canClaimPlot(p, pm).map { canClaim =>
+                @tailrec
+                def auto(n: Int, x: Int, z: Int): (PlotId, Boolean) = {
+                  val id = PlotId.of(pm.w, x, z)
+                  val plot = pm.getPlot(id)
+                  val expired = plot.fold(false)(_.isExpired)
+                  if (plot.isEmpty || expired) (id, expired)
+                  else {
+                    if (x < n) auto(n, x + 1, z)
+                    else if (z < n) auto(n, x, z + 1)
+                    else auto(n + 1, x, z)
+                  }
+                }
+                Try(auto(0, 0, 0)).toOption map {
+                  case (id, expired) =>
+                    if (expired) server.sync {
+                      pm.clear(id)
+                    }
+                    val updated = pm.claim(p, id)
+                    plotDb.save(pm.w, updated)
+                    p.teleport(pm.getHomeLocation(p.getWorld, id))
+                    p.sendMessage(info"Claimed plot ($id)")
+                } getOrElse (p.sendMessage(err"The maximum number of plots has been reached"))
+              }
+            }
+          }
+        case Clear =>
+          asPlayer(sender) { p =>
+            withPlotStatus(p, Owner, _.sendMessage(err"You do not have permission to clear the plot")) { (pm, plot) =>
+              if (plot.protect) {
+                p.sendMessage(err"You cannot clear a protected plot")
+              } else if (p.hasPermission("plot.admin") || plot.canClear(Duration.ofHours(1))) {
+                plotClearConversation.begin(p, plot.id)
+              } else {
+                p.sendMessage(err"You can only clear your plot once per hour")
+              }
+            }
+          }
+        case Reset =>
+          asPlayer(sender) { p =>
+            withPlotStatus(p, Admin, _.sendMessage(err"You do not have permission to reset the plot")) { (pm, plot) =>
+              if (plot.protect) {
+                p.sendMessage(err"You cannot reset a protected plot")
+              } else {
+                val id = plot.id
+                pm.unclaim(id)
+                plotDb.delete(pm.w, id)
+                pm.clear(id)
+                p.sendMessage(info"Reset plot ($id)")
+              }
+            }
+          }
+        case Teleport =>
+          asPlayer(sender) { p =>
+            inPlotWorld(p) { pm =>
+              if (p.hasPermission("plot.admin")) {
+                PlotId.parse(pm.w, c.id) map { id =>
+                  val home = pm.getHomeLocation(p.getWorld, id)
+                  p.sendMessage(info"Teleporting to plot ($id)")
+                  p.teleport(home)
+                } getOrElse(p.sendMessage(err"Invalid coordinate format"))
+              } else {
+                p.sendMessage(err"You do not have permission to teleport to plot coordiantes")
+              }
+            }
+          }
       }
     }
 
   }
 
-
 }
+
