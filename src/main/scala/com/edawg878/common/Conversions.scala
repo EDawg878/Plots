@@ -8,7 +8,7 @@ object Conversions {
   implicit class TraversableHelper[A](val self: Traversable[A]) extends AnyVal {
 
     def mkStringPretty: String =
-      self.mkString(Color.Secondary.toString, Color.Primary.toString + ", " + Color.Secondary, Color.Primary.toString)
+      self.mkString(Color.Secondary.toString, Color.Primary + ", " + Color.Secondary, Color.Primary.toString)
 
   }
 

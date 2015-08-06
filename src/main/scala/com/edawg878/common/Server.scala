@@ -4,7 +4,7 @@ import java.io.{InputStream, IOException}
 import java.nio.file.{Files, Path}
 import java.util.UUID
 import java.util.logging.Logger
-import com.edawg878.bukkit.plot.{PlotStyle, PlotWorld, PlotWorldConfig, Border}
+import com.edawg878.bukkit.plot._
 import org.bukkit.block.Biome
 import play.api.data.validation.ValidationError
 import play.api.libs.json._
@@ -178,6 +178,8 @@ object Server {
 
     import play.api.libs.functional.syntax._
 
+
+    /*
     implicit val worldReads = new Reads[World] {
 
       override def reads(json: JsValue): JsResult[World] = json match {
@@ -210,7 +212,7 @@ object Server {
         "yaw" -> l.getYaw,
         "pitch" -> l.getPitch
       )
-    }
+    }*/
 
     implicit val materialWrites = new Writes[Material] {
       override def writes(m: Material): JsValue = JsString(m.name.toLowerCase)
@@ -234,8 +236,6 @@ object Server {
 
     implicit val plotStyleFormat = Json.format[PlotStyle]
 
-    implicit val plotWorldFormat = Json.format[PlotWorld]
-
     implicit val plotWorldConfigFormat = Json.format[PlotWorldConfig]
 
   }
@@ -243,13 +243,10 @@ object Server {
 
   object Configuration extends CustomCombinators {
 
-    def tryLoad(p: Plugin, f: Path): PlotWorldConfig = {
+    def load(p: Plugin, f: Path): Seq[PlotWorldConfig] = {
       saveDefault(p, f)
-      load(f).getOrElse(throw new RuntimeException(s"Failed to load config: $f"))
+      Json.parse(Files.readAllBytes(f)).as[Seq[PlotWorldConfig]]
     }
-
-    def load(f: Path): Option[PlotWorldConfig] =
-      Json.parse(Files.readAllBytes(f)).asOpt[PlotWorldConfig]
 
     def saveDefault(p: Plugin, f: Path): Unit = {
       if (Files.notExists(f)) {
@@ -261,7 +258,7 @@ object Server {
 
   }
 
-  trait ConfigurationA {
+  trait AConfiguration {
 
     def save(): Unit
 

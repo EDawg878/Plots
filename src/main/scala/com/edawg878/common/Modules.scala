@@ -8,8 +8,7 @@ import com.edawg878.bukkit.commands.PlotCommand.PlotCommand
 import com.edawg878.bukkit.commands.TierCommand.TierCommand
 import com.edawg878.bukkit.listener.PlotListener
 import com.edawg878.bukkit.plot.PlotClearConversation.PlotClearConversation
-import com.edawg878.bukkit.plot.{PlotWorld, PlotManager, PlotWorldConfig}
-import org.bukkit.World
+import com.edawg878.bukkit.plot._
 import org.bukkit.command.CommandSender
 import org.bukkit.event.Listener
 import scala.concurrent.duration._
@@ -41,47 +40,46 @@ object Modules {
 
     import com.edawg878.bukkit.BukkitConversions._
 
-    val tierCommand = new TierCommand(playerDb)
-    val perkCommand = new PerkCommand(playerDb)
-    val creditCommand = new CreditCommand(playerDb)
-    val groupCommand = new GroupCommand(playerDb)
-    val playTimeCommand = new PlayTimeCommand(playerDb, server)
-    val seenCommand = new SeenCommand(playerDb, server)
-    val whoIsCommand = new WhoIsCommand(playerDb, server)
-    val plotClearConversation = new PlotClearConversation(getPlotManager, bukkitPlugin, plotDb)
-    val plotCommand = new PlotCommand(getPlotManager, playerDb, plotDb, server, bukkitServer, plotClearConversation)
-
-    val commands = Seq[Command[CommandSender]](tierCommand, perkCommand, creditCommand, groupCommand, playTimeCommand,
-      seenCommand, whoIsCommand, plotCommand)
-
-    val plotListener = new PlotListener(getPlotManager, plotDb, server, bukkitServer)
-
-    val listeners = Seq[Listener](plotListener)
-
     val configFile = plugin.dataFolder.resolve("config.json")
-    //var config = Configuration.tryLoad[Config](plugin, configFile)
     val plotWorldConfigFile = plugin.dataFolder.resolve("worlds.json")
-    //val plotWorldConfig = Configuration.tryLoad(plugin, plotWorldConfigFile)
-    val plotWorldConfig = PlotWorldConfig(Seq(PlotWorld(name = "world")))
-    val plots = loadPlots
-
+    val plotWorldConfigs = Configuration.load(plugin, plotWorldConfigFile)
+    val plotWorlds = loadPlotWorlds
+    val playerCache = new PlayerCache
 
     def plugin: Plugin = bukkitPlugin.toPlugin
     def server: Server = bukkitServer.toServer(bukkitPlugin)
     def bukkitPlugin: org.bukkit.plugin.Plugin
     def bukkitServer: org.bukkit.Server = bukkitPlugin.getServer
 
-    def getPlotManager(bw: World): Option[PlotManager] = plots.get(bw.getName)
+    val bukkitPlotWorldResolver = new PlotWorldResolver {
+      override def apply(s: String): Option[PlotWorld] = plotWorlds.get(s)
+    }
 
-    def getPlotWorld(name: String): Option[PlotWorld] = plotWorldConfig.worlds.find(_.name == name)
+    def getPlotWorldConfig(s: String): Option[PlotWorldConfig] = plotWorldConfigs.find(_.name == s)
 
-    def loadPlots: Map[String, PlotManager] = {
-      val fMan = plotWorldConfig.worlds
-        .map(PlotManager.load(_, plotDb))
+    def loadPlotWorlds: Map[String, PlotWorld] = {
+      val fMan = plotWorldConfigs.map(PlotWorld.load(_, plotDb))
       val fManSeq = Future.sequence(fMan)
       val r = Await.result(fManSeq, 5 minutes)
-      r.map{ case m => m.w.name -> m }.toMap
+      r.map{ case w => w.config.name -> w }.toMap
     }
+
+    val tierCommand = new TierCommand(playerDb)
+    val perkCommand = new PerkCommand(playerDb)
+    val creditCommand = new CreditCommand(playerDb)
+    val groupCommand = new GroupCommand(playerDb)
+    val playTimeCommand = new PlayTimeCommand(playerDb, server)
+    val seenCommand = new SeenCommand(playerDb, server)
+    val whoIsCommand = new WhoIsCommand(playerDb)
+    val plotClearConversation = new PlotClearConversation(bukkitPlotWorldResolver, bukkitPlugin, plotDb, bukkitServer)
+    val plotCommand = new PlotCommand(bukkitPlotWorldResolver, playerDb, plotDb, server, bukkitServer, plotClearConversation)
+
+    val plotListener = new PlotListener(bukkitPlotWorldResolver, plotDb, server, bukkitServer)
+
+    val commands = Seq[Command[CommandSender]](tierCommand, perkCommand, creditCommand, groupCommand, playTimeCommand,
+      seenCommand, whoIsCommand, plotCommand)
+    val listeners = Seq[Listener](plotListener)
+
 
   }
 }

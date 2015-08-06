@@ -1,15 +1,15 @@
 package com.edawg878.common
 
-import net.md_5.bungee.api.ChatColor
+import net.md_5.bungee.api.ChatColor._
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
  */
 object Color {
 
-  val Error = ChatColor.RED
-  val Primary = ChatColor.GOLD
-  val Secondary = ChatColor.RED
+  val Error = RED
+  val Primary = GOLD
+  val Secondary = RED
 
   implicit class Formatter(sc: StringContext) {
 

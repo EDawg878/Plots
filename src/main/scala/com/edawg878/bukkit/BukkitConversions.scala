@@ -51,6 +51,8 @@ object BukkitConversions {
 
   }
 
+  //implicit def bukkitPlayerToUniqueId(p: org.bukkit.entity.Player): UUID = p.getUniqueId
+
   implicit class BukkitServer(s: org.bukkit.Server) {
 
     def toServer(p: org.bukkit.plugin.Plugin): Server = new Server {

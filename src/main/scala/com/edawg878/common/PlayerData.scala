@@ -9,6 +9,7 @@ import com.edawg878.common.Server.Player
 import com.edawg878.common.Color.Formatter
 import com.edawg878.common.DateUnit.Implicits.standardUnits
 
+import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 
 /**
@@ -45,8 +46,12 @@ case class PlayerData(id: UUID,
 
   def this(p: Player) = this(id = p.id, name = p.name)
 
+  def login: PlayerData = copy(playTime = playTime.login)
+
+  def logout: PlayerData = copy(playTime = playTime.logout)
+
   def updateName(s: String): PlayerData = {
-    if (name equalsIgnoreCase s) this
+    if (name == s) this
     else {
       val c = usernames.clone()
       c.remove(name)
@@ -77,4 +82,10 @@ case class PlayerData(id: UUID,
   def groupToString: String = info"$name is in group ${group.name}"
 
   override def compare(that: PlayerData): Int = this.playTime.lastSeen compareTo that.playTime.lastSeen
+}
+
+class PlayerCache(players: TrieMap[UUID, PlayerData] = TrieMap()) {
+
+  def update(d: PlayerData): Unit = players.put(d.id, d)
+
 }

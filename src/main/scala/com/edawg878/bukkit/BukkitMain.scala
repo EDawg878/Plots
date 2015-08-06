@@ -1,7 +1,7 @@
 package com.edawg878.bukkit
 
 import com.edawg878.bukkit.plot.PlotGenerator
-import com.edawg878.common.{PlayerData, Command}
+import com.edawg878.common.{PlayTime, PlayerNotFound, PlayerData, Command}
 import com.edawg878.common.Modules.BukkitModule
 import org.bukkit.command.{CommandExecutor, CommandSender}
 import org.bukkit.event.player.{PlayerJoinEvent, PlayerQuitEvent}
@@ -12,6 +12,7 @@ import BukkitConversions._
 
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.{Future, Promise}
 import scala.util.Success
 
 /**
@@ -38,7 +39,7 @@ class BukkitMain extends JavaPlugin with Listener {
       }
     }
     val bc = getCommand(meta.cmd)
-    meta.perm.map(bc.setPermission)
+    meta.perm.foreach(bc.setPermission)
     bc.setAliases(meta.aliases.asJava)
     bc.setExecutor(exec)
   }
@@ -52,28 +53,26 @@ class BukkitMain extends JavaPlugin with Listener {
   }
 
   override def getDefaultWorldGenerator(worldName: String, style: String): ChunkGenerator =
-    getPlotWorld(worldName).map(new PlotGenerator(_)).orNull
+    getPlotWorldConfig(worldName).map(new PlotGenerator(_)).orNull
 
   @EventHandler
-  def onJoin(event: PlayerJoinEvent) {
-    val player = event.getPlayer.toPlayer
-    playerDb.find(player.id) onComplete {
-      case Success(data) =>
-        val updated = data.updateName(player.name)
-          .copy(playTime = data.playTime.login)
-        playerDb.save(updated)
-      case _ =>
-        playerDb.insert(new PlayerData(player))
-    }
+  def onJoin(ev: PlayerJoinEvent) {
+    val p = ev.getPlayer
+    playerDb.search(p.getUniqueId)
+      .map(_.getOrElse(new PlayerData(p.getUniqueId, p.getName)))
+      .map(_.updateName(p.getName).login)
+      .foreach { d =>
+        playerDb.save(d)
+        playerCache.update(d)
+      }
   }
 
   @EventHandler
-  def onQuit(event: PlayerQuitEvent): Unit = {
-    val player = event.getPlayer
-    playerDb.find(player.getUniqueId) onSuccess {
-      case data =>
-        val updated = data.copy(playTime = data.playTime.logout)
-        playerDb.save(updated)
+  def onQuit(ev: PlayerQuitEvent): Unit = {
+    val p = ev.getPlayer
+    playerDb.find(p.getUniqueId) map { d =>
+      playerDb.save(d)
+      playerCache.update(d)
     }
   }
 

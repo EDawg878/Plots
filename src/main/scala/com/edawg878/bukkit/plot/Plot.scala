@@ -3,6 +3,7 @@ package com.edawg878.bukkit.plot
 import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAmount
 import java.time.{Duration, Instant, LocalDate}
+import java.util.concurrent.ConcurrentHashMap
 import java.util.{Random, UUID}
 
 import com.edawg878.bukkit.plot.Plot._
@@ -14,8 +15,9 @@ import org.bukkit.block.Biome._
 import org.bukkit.entity.Player
 import org.bukkit.generator.ChunkGenerator
 import org.bukkit.generator.ChunkGenerator.BiomeGrid
-import org.bukkit.{ChatColor, Location, Material, World}
+import org.bukkit._
 
+import scala.collection.concurrent.TrieMap
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
@@ -35,7 +37,7 @@ case class PlotStyle(border: Material = DOUBLE_STEP,
                      path: Material = WOOD,
                      biome: Biome = PLAINS)
 
-case class PlotWorld(name: String,
+case class PlotWorldConfig(name: String,
                      plotSize: Int = 64,
                      borderHeight: Int = 65,
                      topHeight: Int = 64,
@@ -48,6 +50,7 @@ case class PlotWorld(name: String,
   val ChunkSize = 16
   val ChunkExp = Math.getExponent(ChunkSize)
   val WorldExp = Math.getExponent(plotSize)
+  val MaxY = math.max(pathHeight, math.max(borderHeight, topHeight))
 
   private def isBorder(x: Int, z: Int, border: Int => Boolean): Boolean = {
     val px = x & (plotSize - 1)
@@ -82,71 +85,72 @@ case class Corners(bottom: Position, top: Position)
 
 case class Region(minX: Int, maxX: Int, minZ: Int, maxZ: Int)
 
-object ChunkRegion {
-
-  def apply(w: PlotWorld, id: PlotId): ChunkRegion = {
-    val exp = w.WorldExp - w.ChunkExp
-    val chunks = (w.plotSize >> 4) - 1
-    val minX = id.x << exp
-    val minZ = id.z << exp
-    val maxX = minX + chunks
-    val maxZ = minZ + chunks
-    ChunkRegion(minX, maxX, minZ, maxZ)
-  }
-
-}
-
-case class ChunkRegion(minX: Int, maxX: Int, minZ: Int, maxZ: Int)
-
 object PlotId {
 
-  def parse(w: PlotWorld, input: String): Option[PlotId] = {
-    val s = input.split(";")
-    Try(PlotId(s(0).toInt, s(1).toInt, w.name)).toOption
+  def parse(c: PlotWorldConfig, p: String): Option[PlotId] = {
+    val s = p.split(";")
+    Try(PlotId(s(0).toInt, s(1).toInt, c.name)).toOption
   }
 
-  def of(w: PlotWorld, x: Int, z: Int) = this(x >> w.WorldExp, z >> w.WorldExp, w.name)
+  def of(c: PlotWorldConfig, x: Int, z: Int) = this(x >> c.WorldExp, z >> c.WorldExp, c.name)
 
 }
 
 case class PlotId(x: Int, z: Int, world: String) {
 
-  def border(w: PlotWorld): Border = {
-    val r = region(w)
-    Border(buffer = 0, knockback = 5, minX = r.minX, maxX = r.maxX, minZ = r.minZ, maxZ = r.maxZ)
+  def border(c: PlotWorldConfig): Border = {
+    val blockX = x << c.WorldExp
+    val blockZ = z << c.WorldExp
+    Border(buffer = 0, knockback = -5,
+      minX = blockX, maxX = blockX + c.plotSize,
+      minZ = blockZ, maxZ = blockZ + c.plotSize)
   }
 
-  def corners(w: PlotWorld): Corners = {
-    val blockX: Int = x << w.WorldExp
-    val blockZ: Int = z << w.WorldExp
+  def corners(c: PlotWorldConfig): Corners = {
+    val blockX = x << c.WorldExp
+    val blockZ = z << c.WorldExp
     val bottom = Position(blockX, 0, blockZ)
-    val top = Position(blockX + w.plotSize - 1, w.maxHeight, blockZ + w.plotSize - 1)
+    val top = Position(blockX + c.plotSize - 1, c.maxHeight, blockZ + c.plotSize - 1)
     Corners(bottom, top)
   }
 
-  def region(w: PlotWorld): Region = {
-    val blockX: Int = x << w.WorldExp
-    val blockZ: Int = z << w.WorldExp
-    val size = w.plotSize - 1
-    Region(minX = blockX, maxX = blockX + size, minZ = blockZ, maxZ = blockZ + size)
+  def region(c: PlotWorldConfig): Region = {
+    val blockX = x << c.WorldExp
+    val blockZ = z << c.WorldExp
+    val size = c.plotSize
+    val minX = blockX
+    val maxX = blockX + size
+    val minZ = blockZ
+    val maxZ = blockZ + size
+    Region(minX, maxX, minZ, maxZ)
   }
 
-  def isInside(w: PlotWorld, l: Location): Boolean =
-    w.name == l.getWorld.getName && isInside(w, l.toPosition)
+  def chunkRegion(c: PlotWorldConfig): Region = {
+    val exp = c.WorldExp - c.ChunkExp
+    val chunks = (c.plotSize >> 4) - 1
+    val minX = x << exp
+    val minZ = z << exp
+    val maxX = minX + chunks
+    val maxZ = minZ + chunks
+    Region(minX, maxX, minZ, maxZ)
+  }
 
-  def isInside(w: PlotWorld, p: Position): Boolean = {
-    val c = corners(w)
-    p.x >= c.bottom.x &&
-      p.x <= c.top.x &&
-      p.y >= c.bottom.y &&
-      p.y <= c.top.y &&
-      p.z >= c.bottom.z &&
-      p.z <= c.top.z
+  def isInside(c: PlotWorldConfig, l: Location): Boolean =
+    c.name == l.getWorld.getName && isInside(c, l.toPosition)
+
+  def isInside(c: PlotWorldConfig, p: Position): Boolean = {
+    val cs = corners(c)
+    p.x >= cs.bottom.x &&
+      p.x <= cs.top.x &&
+      p.y >= cs.bottom.y &&
+      p.y <= cs.top.y &&
+      p.z >= cs.bottom.z &&
+      p.z <= cs.top.z
   }
 
   def distanceSq(id: PlotId): Double = math.pow(id.x - x, 2) + math.pow(id.z - z, 2)
 
-  def distance(id: PlotId): Double = math.sqrt(distance(id))
+  def distance(id: PlotId): Double = math.sqrt(distanceSq(id))
 
   override def toString: String = Seq(x, z).mkString(";")
 
@@ -180,7 +184,6 @@ object Plot {
   case object Error extends Result
   case object True extends Result
   case object False extends Result
-  case object Invalid extends Result
 
   def newExpiration: LocalDate = LocalDate.now.plusDays(30)
 
@@ -228,14 +231,15 @@ case class Plot(id: PlotId,
   def ids: Set[UUID] = helpers ++ trusted ++ banned + owner
 
   def canClear(amt: TemporalAmount): Boolean =
-    lastCleared.fold(true)(t => Instant.now().isAfter(t.plus(amt)))
+    lastCleared.fold(true)(t => Instant.now.isAfter(t.plus(amt)))
 
   def status(p: Player): Status = {
+    val pid = p.getUniqueId
     if (p.hasPermission("plot.admin")) Admin
-    else if (isOwner(p)) Owner
-    else if (isTrusted(p)) Trusted
-    else if (isHelper(p)) HelperOffline
-    else if (isBanned(p)) Banned
+    else if (isOwner(pid)) Owner
+    else if (isTrusted(pid)) Trusted
+    else if (isHelper(pid)) HelperOffline
+    else if (isBanned(pid)) Banned
     else NotBanned
   }
 
@@ -246,8 +250,7 @@ case class Plot(id: PlotId,
   }
 
   def entryStatus(p: Player): EntryStatus = {
-    val pid = p.getUniqueId
-    if (banned contains pid) Denied
+    if (banned contains p.getUniqueId) Denied
     else if (closed && !status(p).has(NotBanned)) Closed
     else Allowed
   }
@@ -258,30 +261,21 @@ case class Plot(id: PlotId,
   def isAdded(pid: UUID): Boolean = isHelper(pid) || isTrusted(pid)
   def isBanned(pid: UUID): Boolean = banned.contains(pid)
 
-  def isOwner(p: Player): Boolean = isOwner(p.getUniqueId)
-  def isHelper(p: Player): Boolean = isHelper(p.getUniqueId)
-  def isTrusted(p: Player): Boolean = isTrusted(p.getUniqueId)
-  def isAdded(p: Player): Boolean = isAdded(p.getUniqueId)
-  def isBanned(p: Player): Boolean = isBanned(p.getUniqueId)
-
   override def compare(that: Plot): Int = this.timeClaimed compareTo that.timeClaimed
 }
 
 case class Border(buffer: Int,
                   knockback: Int,
-                  maxX: Int = 0,
                   minX: Int = 0,
-                  maxZ: Int = 0,
-                  minZ: Int = 0) {
-
-  def recalculate(w: PlotWorld, id: PlotId): Border = {
-    val r = id.region(w)
+                  maxX: Int = 0,
+                  minZ: Int = 0,
+                  maxZ: Int = 0) {
+  
+  def recalculate(r: Region): Border =
     copy(minX = minX.min(r.minX) - buffer,
       maxX = maxX.max(r.maxX) + buffer,
       minZ = minZ.min(r.minZ) - buffer,
-      maxZ = maxZ.max(r.maxZ) + buffer
-    )
-  }
+      maxZ = maxZ.max(r.maxZ) + buffer)
 
   def isPast(loc: Location): Boolean = {
     val locX = loc.getBlockX
@@ -311,133 +305,127 @@ case class Border(buffer: Int,
 
 }
 
-case class PlotWorldConfig(worlds: Seq[PlotWorld])
+trait PlotWorldResolver {
 
-//case class Config(message: String)
+  def apply(s: String): Option[PlotWorld]
 
-object PlotManager {
+  def apply(bw: World): Option[PlotWorld] = apply(bw.getName)
 
-  def load(w: PlotWorld, db: PlotRepository): Future[PlotManager] = {
-    Future {
-      val res = mutable.Map[PlotId, Plot]()
+}
 
-      for (pSeq <- db.findAll(w)) {
-        for (p <- pSeq) {
-          res.put(p.id, p)
-        }
-      }
+object PlotWorld {
 
-      PlotManager(w, res, findBorder(w, res))
-    }
-  }
+  def load(c: PlotWorldConfig, db: PlotRepository): Future[PlotWorld] =
+    db.findAll(c.name)
+        .map(_.map(p => p.id -> p))
+        .map(TrieMap.apply)
+        .map(plots => PlotWorld(c, plots, findBorder(c, plots.keys)))
 
-  def findBorder(w: PlotWorld, plots: mutable.Map[PlotId, Plot]): Border = {
-    val r = plots.map {
-      case (id, p) => ChunkRegion(w, id)
-    }
-    val buffer = w.plotSize * 3
-    val knockback = w.pathWidth - 1
-    if (r.isEmpty) {
-      Border(buffer, knockback, minX = -buffer, maxX = buffer, minZ = -buffer, maxZ = buffer)
-    } else {
-      val _minX = r.map(_.minX).min
-      val _maxX = r.map(_.maxX).max
-      val _minZ = r.map(_.minZ).min
-      val _maxZ = r.map(_.maxZ).max
-      Border(buffer, knockback, minX = _minX - buffer, maxX = _maxX + buffer, minZ = _minZ - buffer, maxZ = _maxZ + buffer)
+  def findBorder(c: PlotWorldConfig, ids: Iterable[PlotId]): Border = {
+    val regions = ids.map(_.chunkRegion(c))
+    val buffer = c.plotSize
+    val knockback = c.pathWidth - 1
+    val start = Border(buffer, knockback, -buffer, buffer, -buffer, buffer)
+    if (regions.isEmpty) start
+    else {
+      val region = regions.reduce((a, b) =>
+        Region(math.min(a.minX, b.minX), math.max(a.maxX, b.maxX), math.min(a.minZ, b.minZ), math.max(a.maxZ, b.maxZ)))
+      start.recalculate(region)
     }
   }
 
 }
 
-case class PlotManager(w: PlotWorld, plots: mutable.Map[PlotId, Plot], var border: Border) {
+case class PlotWorld(config: PlotWorldConfig, plots: TrieMap[PlotId, Plot], var border: Border) {
 
   def update(plot: Plot): Unit = plots.put(plot.id, plot)
 
-  def getPlotId(loc: Location): PlotId = PlotId.of(w, loc.getBlockX, loc.getBlockZ)
+  def getPlotId(loc: Location): PlotId = PlotId.of(config, loc.getBlockX, loc.getBlockZ)
 
   def getPlot(id: PlotId): Option[Plot] = plots.get(id)
 
   def claim(p: Player, id: PlotId): Plot = {
     val plot = Plot(p.getUniqueId, id)
     plots.put(id, plot)
-    border = border.recalculate(w, id)
     plot
   }
 
   def unclaim(id: PlotId): Option[Plot] = plots.remove(id)
 
   def getHomeLocation(bw: World, id: PlotId): Location = {
-    val c = id.corners(w).bottom
-    val x = c.x + w.pathWidth
-    val z = c.z + w.pathWidth
+    val c = id.corners(config).bottom
+    val x = c.x + config.pathWidth
+    val z = c.z + config.pathWidth
     val y = bw.getHighestBlockYAt(x, z)
     val yaw = -45f
     val pitch = 0f
     new Location(bw, x, y, z, yaw, pitch)
   }
+  
+  def getHomes(pid: UUID): Seq[Plot] = plots.values.filter(_.isOwner(pid)).toSeq.sorted
 
-  def getHomes(p: Player): Seq[Plot] = getHomes(p.getUniqueId)
-
-  def getHomes(id: UUID): Seq[Plot] = plots.values.filter(_.isOwner(id)).toSeq.sorted
-
-  def getHome(id: UUID, n: Int): Option[Plot] = Try(getHomes(id)(n - 1)).toOption
-
-  def getHome(p: Player, n: Int): Option[Plot] = getHome(p.getUniqueId, n)
-
-  def getHome(id: UUID, s: String): Option[Plot] = getHomes(id).find(_.alias.contains(s))
-
-  def getHome(p: Player, s: String): Option[Plot] = getHome(p.getUniqueId, s)
-
+  def getHome(pid: UUID, n: Int): Option[Plot] = Try(getHomes(pid)(n - 1)).toOption
+  
+  def getHome(pid: UUID, s: String): Option[Plot] = getHomes(pid).find(_.alias.contains(s))
+  
   def isInside(l: Location, id: PlotId): Boolean =
-    l.getWorld.getName == w.name && id.isInside(w, l.toPosition)
+    l.getWorld.getName == config.name && id.isInside(config, l.toPosition)
 
   def isClaimed(id: PlotId): Boolean = plots.contains(id)
 
-  def clear(id: PlotId): Unit = {}
+  def clear(bw: World, id: PlotId): Unit = {
+    require(Bukkit.isPrimaryThread, "plots must be cleared from the main thread")
+    val r = id.chunkRegion(config)
+    for (cx <- r.minX to r.maxX) {
+      for (cz <- r.minZ to r.maxZ) {
+        bw.regenerateChunk(cx, cz)
+      }
+    }
+  }
 
 }
 
 trait PlotHelper {
-
-  def pms: World => Option[PlotManager]
+  
+  def resolver: PlotWorldResolver
   def server: Server
 
-  def isPlotWorld(w: World): Boolean = pms(w).isDefined
+  def isPlotWorld(w: World): Boolean = resolver(w).isDefined
 
   def isPlotWorld(loc: Location): Boolean = isPlotWorld(loc.getWorld)
 
-  def inPlotWorld(p: Player)(pm: PlotManager => Unit): Unit =
-    pms(p.getWorld).map(pm).getOrElse(p.sendMessage(err"You must be in a plot world to execute this command"))
+  def inPlotWorld(p: Player)(pm: PlotWorld => Unit): Unit =
+    resolver(p.getWorld).map(pm).getOrElse(p.sendMessage(err"You must be in a plot world to execute this command"))
 
-  def withPlotStatus(p: Player, st: Status, err: Player => Unit)(f: (PlotManager, Plot) => Unit): Unit =
-    inPlotWorld(p) { pm =>
-      pm.getPlot(pm.getPlotId(p.getLocation)).fold(p.sendMessage(err"No plot found")) { plot =>
-        if (plot.status(server, p).has(st)) f(pm, plot)
+  def withPlotStatus(p: Player, st: Status, err: Player => Unit)(f: (PlotWorld, Plot) => Unit): Unit =
+    inPlotWorld(p) { w =>
+      w.getPlot(w.getPlotId(p.getLocation)).fold(p.sendMessage(err"No plot found")) { plot =>
+        if (plot.status(server, p).has(st)) f(w, plot)
         else err(p)
       }
     }
 
  def getPlot(loc: Location): Option[Plot] =
-   pms(loc.getWorld).flatMap(pm => pm.getPlot(pm.getPlotId(loc)))
+   resolver(loc.getWorld).flatMap(w => w.getPlot(w.getPlotId(loc)))
 
   private def failure(p: Player, s: String*): Result = { s.foreach(p sendMessage); Error }
 
-  def has(st: Status, p: Player, loc: Location, s: Server): Result = {
-    pms(loc.getWorld).fold[Result](Invalid) { pm =>
-      if (!pm.w.buildOnFloor && loc.getBlockY <= 0) failure(p, err"You cannot build on the floor level")
+  def has(st: Status, p: Player, loc: Location): Result = {
+    resolver(loc.getWorld).fold[Result](False) { w =>
+      if (!w.config.buildOnFloor && loc.getBlockY <= 0) failure(p, err"You cannot build on the floor level")
       else {
         if (p hasPermission "plot.admin") True
-        else pm.getPlot(pm.getPlotId(loc))
+        else w.getPlot(w.getPlotId(loc))
             .fold(failure(p, err"You cannot build here")){ plot =>
-          if (!plot.roadAccess && (pm.w.isBorder(loc) || pm.w.isPath(loc))) {
+          if (!plot.roadAccess && (w.config.isBorder(loc) || w.config.isPath(loc))) {
             failure(p, err"You cannot build here")
           } else {
+            val pid = p.getUniqueId
             st match {
               case HelperOnline =>
-                if (plot.isOwner(p) || plot.isTrusted(p)) True
-                else if (plot.isHelper(p)) {
-                  if (s.isOnline(plot.owner)) True
+                if (plot.isOwner(pid) || plot.isTrusted(pid)) True
+                else if (plot.isHelper(pid)) {
+                  if (server.isOnline(plot.owner)) True
                   else {
                     p.sendMessage(err"You cannot modify the plot while its owner is offline unless you are trusted")
                     Error
@@ -446,16 +434,16 @@ trait PlotHelper {
                   False
                 }
               case HelperOffline =>
-                Result(plot.isOwner(p) || plot.isHelper(p) || plot.isTrusted(p))
+                Result(plot.isOwner(pid) || plot.isHelper(pid) || plot.isTrusted(pid))
               case Owner =>
-                Result(plot.isOwner(p))
+                Result(plot.isOwner(pid))
               case Trusted =>
-                Result(plot.isOwner(p) || plot.isTrusted(p))
+                Result(plot.isOwner(pid) || plot.isTrusted(pid))
               case Banned =>
-                Result(plot.isBanned(p))
+                Result(plot.isBanned(pid))
               case NotBanned =>
-                Result(!plot.isBanned(p))
-              case _ =>
+                Result(!plot.isBanned(pid))
+              case Admin =>
                 False
             }
           }}
@@ -465,13 +453,11 @@ trait PlotHelper {
 
 }
 
-class PlotGenerator(w: PlotWorld, maxY: Int) extends ChunkGenerator {
+class PlotGenerator(c: PlotWorldConfig) extends ChunkGenerator {
 
-  def this(w: PlotWorld) = this(w, math.max(w.pathHeight, math.max(w.borderHeight, w.topHeight)))
+  override def generateExtBlockSections(bw: World, random: Random, cx: Int, cz: Int, biomes: BiomeGrid): Array[Array[Short]] = {
 
-  override def generateExtBlockSections(world: World, random: Random, cx: Int, cz: Int, biomes: BiomeGrid): Array[Array[Short]] = {
-
-    val result = new Array[Array[Short]](world.getMaxHeight >> 4)
+    val result = new Array[Array[Short]](bw.getMaxHeight >> 4)
 
     for {
       x <- 0 until 16
@@ -481,26 +467,26 @@ class PlotGenerator(w: PlotWorld, maxY: Int) extends ChunkGenerator {
     } yield setBlocks(x, z, locX, locZ)
 
     def setBlocks(x: Int, z: Int, locX: Int, locZ: Int): Unit = {
-      Option(biomes).foreach(_.setBiome(x, z, w.style.biome))
+      Option(biomes).foreach(_.setBiome(x, z, c.style.biome))
 
-      val path = w.isPath(locX, locZ)
-      val border = w.isBorder(locX, locZ)
+      val path = c.isPath(locX, locZ)
+      val border = c.isBorder(locX, locZ)
 
       if (path) {
-        setBlock(result, x, w.pathHeight, z, w.style.path)
+        setBlock(result, x, c.pathHeight, z, c.style.path)
       } else if (border) {
-        setBlock(result, x, w.borderHeight, z, w.style.border)
+        setBlock(result, x, c.borderHeight, z, c.style.border)
       } else {
-        setBlock(result, x, w.topHeight, z, w.style.top)
+        setBlock(result, x, c.topHeight, z, c.style.top)
       }
 
-      setBlock(result, x, 0, z, w.style.bottom)
+      setBlock(result, x, 0, z, c.style.bottom)
 
-      for (y <- 1 until maxY) {
-        if (border && !path && y < w.borderHeight) {
-          setBlock(result, x, y, z, w.style.wall)
-        } else if (path || y < w.topHeight) {
-          setBlock(result, x, y, z, w.style.filling)
+      for (y <- 1 until c.MaxY) {
+        if (border && !path && y < c.borderHeight) {
+          setBlock(result, x, y, z, c.style.wall)
+        } else if (path || y < c.topHeight) {
+          setBlock(result, x, y, z, c.style.filling)
         }
       }
     }
@@ -509,9 +495,7 @@ class PlotGenerator(w: PlotWorld, maxY: Int) extends ChunkGenerator {
   }
 
   def setBlock(result: Array[Array[Short]], x: Int, y: Int, z: Int, m: Material): Unit = {
-    if (result(y >> 4) == null) {
-      result(y >> 4) = new Array[Short](4096)
-    }
+    if (result(y >> 4) == null) result(y >> 4) = new Array[Short](4096)
     result(y >> 4)(((y & 0xF) << 8) | (z << 4) | x) = m.getId.toShort
   }
 

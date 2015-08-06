@@ -5,7 +5,7 @@ import java.time.temporal.ChronoUnit
 import java.util.UUID
 import java.util.logging.{Level, Logger}
 
-import com.edawg878.bukkit.plot.{Plot, PlotId, PlotWorld}
+import com.edawg878.bukkit.plot.{Plot, PlotId, PlotWorldConfig}
 import com.edawg878.common.Server.Player
 import reactivemongo.api.collections.default.BSONCollection
 import reactivemongo.api.indexes.{Index, IndexType}
@@ -51,7 +51,7 @@ trait PlayerRepository {
   def searchAll(name: String): Future[Seq[PlayerData]]
 
   def find(name: String): Future[PlayerData] =
-    search(name).map(_.headOption).map(_.getOrElse(throw new PlayerNotFound(name)))
+    search(name).map(_.headOption.getOrElse(throw new PlayerNotFound(name)))
 
   def save(data: PlayerData): Unit
 
@@ -61,15 +61,15 @@ trait PlayerRepository {
 
 trait PlotRepository {
 
-  def findAll(w: PlotWorld): Future[Seq[Plot]]
+  def findAll(w: String): Future[Seq[Plot]]
 
-  def find(w: PlotWorld, id: PlotId): Future[Option[Plot]]
+  def find(id: PlotId): Future[Option[Plot]]
 
-  def insert(w: PlotWorld, p: Plot): Unit
+  def insert(p: Plot): Unit
 
-  def save(w: PlotWorld, p: Plot): Unit
+  def save(p: Plot): Unit
 
-  def delete(w: PlotWorld, p: PlotId): Unit
+  def delete(id: PlotId): Unit
 
 }
 
@@ -135,9 +135,9 @@ trait BSONHandlers {
     override def read(bson: BSONDocument): PlotId = PlotId(bson.getAs[Int]("x").get, bson.getAs[Int]("z").get, bson.getAs[String]("world").get)
   }
 
-  implicit object PlotWorldWriter extends BSONWriter[PlotWorld, BSONString] {
+  implicit object PlotWorldWriter extends BSONWriter[PlotWorldConfig, BSONString] {
 
-    override def write(w: PlotWorld): BSONString = BSONString(w.name)
+    override def write(w: PlotWorldConfig): BSONString = BSONString(w.name)
 
   }
 
@@ -163,30 +163,30 @@ trait BSONHandlers {
     }
 
     override def read(doc: BSONDocument): PlayerData = {
-      val _id = doc.getAs[UUID]("_id").get
-      val _name = doc.getAs[String]("name").get
-      val _usernames = doc.getAs[mutable.LinkedHashSet[String]]("usernames").getOrElse(new mutable.LinkedHashSet)
-      val _perks = doc.getAs[Set[String]]("perks").getOrElse(Set.empty)
-      val _displayName = doc.getAs[String]("displayName")
-      val _tier = doc.getAs[Int]("tier").get
-      val _plotLimit = doc.getAs[Int]("plotLimit").get
-      val _voteCredits = doc.getAs[Int]("voteCredits").get
-      val _group = doc.getAs[Group]("group").get
-      val _firstLogin = doc.getAs[Instant]("firstLogin").get
-      val _lastSeen = doc.getAs[Instant]("lastSeen").get
-      val _amount = doc.getAs[Duration]("playTime").get
-      val _playTime = PlayTime(firstLogin = _firstLogin, lastSeen = _lastSeen, amount = _amount)
+      val id = doc.getAs[UUID]("_id").get
+      val name = doc.getAs[String]("name").get
+      val usernames = doc.getAs[mutable.LinkedHashSet[String]]("usernames").getOrElse(new mutable.LinkedHashSet)
+      val perks = doc.getAs[Set[String]]("perks").getOrElse(Set())
+      val displayName = doc.getAs[String]("displayName")
+      val tier = doc.getAs[Int]("tier").get
+      val plotLimit = doc.getAs[Int]("plotLimit").get
+      val voteCredits = doc.getAs[Int]("voteCredits").get
+      val group = doc.getAs[Group]("group").get
+      val firstLogin = doc.getAs[Instant]("firstLogin").get
+      val lastSeen = doc.getAs[Instant]("lastSeen").get
+      val amount = doc.getAs[Duration]("playTime").get
+      val playTime = PlayTime(firstLogin = firstLogin, lastSeen = lastSeen, amount = amount)
       PlayerData(
-        id = _id,
-        name = _name,
-        usernames = _usernames,
-        perks = _perks,
-        displayName = _displayName,
-        tier = _tier,
-        plotLimit = _plotLimit,
-        voteCredits = _voteCredits,
-        group = _group,
-        playTime = _playTime
+        id = id,
+        name = name,
+        usernames = usernames,
+        perks = perks,
+        displayName = displayName,
+        tier = tier,
+        plotLimit = plotLimit,
+        voteCredits = voteCredits,
+        group = group,
+        playTime = playTime
       )
     }
   }
@@ -211,31 +211,31 @@ trait BSONHandlers {
     }
 
     override def read(doc: BSONDocument): Plot = {
-      val _id = doc.getAs[PlotId]("_id").get
-      val _owner = doc.getAs[UUID]("owner").get
-      val _alias = doc.getAs[String]("alias")
-      val _timeClaimed = doc.getAs[Instant]("timeClaimed").get
-      val _lastCleared = doc.getAs[Instant]("lastCleared")
-      val _expirationDate = doc.getAs[LocalDate]("expirationDate").get
-      val _protected = doc.getAs[Boolean]("protected").get
-      val _closed = doc.getAs[Boolean]("closed").get
-      val _roadAccess = doc.getAs[Boolean]("roadAccess").get
-      val _helpers = doc.getAs[Set[UUID]]("helpers").getOrElse(Set())
-      val _trusted = doc.getAs[Set[UUID]]("trusted").getOrElse(Set())
-      val _banned = doc.getAs[Set[UUID]]("banned").getOrElse(Set())
+      val id = doc.getAs[PlotId]("_id").get
+      val owner = doc.getAs[UUID]("owner").get
+      val alias = doc.getAs[String]("alias")
+      val timeClaimed = doc.getAs[Instant]("timeClaimed").get
+      val lastCleared = doc.getAs[Instant]("lastCleared")
+      val expirationDate = doc.getAs[LocalDate]("expirationDate").get
+      val protect = doc.getAs[Boolean]("protected").get
+      val closed = doc.getAs[Boolean]("closed").get
+      val roadAccess = doc.getAs[Boolean]("roadAccess").get
+      val helpers = doc.getAs[Set[UUID]]("helpers").getOrElse(Set())
+      val trusted = doc.getAs[Set[UUID]]("trusted").getOrElse(Set())
+      val banned = doc.getAs[Set[UUID]]("banned").getOrElse(Set())
       Plot(
-        id = _id,
-        owner = _owner,
-        alias = _alias,
-        timeClaimed = _timeClaimed,
-        lastCleared = _lastCleared,
-        expirationDate = _expirationDate,
-        protect = _protected,
-        closed = _closed,
-        roadAccess = _roadAccess,
-        helpers = _helpers,
-        trusted = _trusted,
-        banned = _banned
+        id = id,
+        owner = owner,
+        alias = alias,
+        timeClaimed = timeClaimed,
+        lastCleared = lastCleared,
+        expirationDate = expirationDate,
+        protect = protect,
+        closed = closed,
+        roadAccess = roadAccess,
+        helpers = helpers,
+        trusted = trusted,
+        banned = banned
       )
     }
   }
@@ -295,19 +295,19 @@ class MongoPlotRepository(mongo: DB, val logger: Logger) extends MongoRepository
 
   override def ensureIndexes(): Unit = {}
 
-  def queryById(w: PlotWorld, id: PlotId): BSONDocument = BSONDocument("_id" -> id)
+  def queryById(id: PlotId): BSONDocument = BSONDocument("_id" -> id)
 
-  def queryByWorld(w: PlotWorld): BSONDocument = BSONDocument("_id.world" -> w.name)
+  def queryByWorld(w: String): BSONDocument = BSONDocument("_id.world" -> w)
 
-  override def findAll(w: PlotWorld): Future[Seq[Plot]] =
+  override def findAll(w: String): Future[Seq[Plot]] =
     col.find(queryByWorld(w)).cursor[Plot].collect[Vector]()
 
-  override def find(w: PlotWorld, id: PlotId): Future[Option[Plot]] =
-    col.find(queryById(w, id)).cursor[Plot].headOption
+  override def find(id: PlotId): Future[Option[Plot]] =
+    col.find(queryById(id)).cursor[Plot].headOption
 
-  override def insert(w: PlotWorld, p: Plot): Unit = col.insert(p)
+  override def insert(p: Plot): Unit = col.insert(p)
 
-  override def delete(w: PlotWorld, id: PlotId): Unit = col.remove(queryById(w, id))
+  override def delete(id: PlotId): Unit = col.remove(queryById(id))
 
-  override def save(w: PlotWorld, p: Plot): Unit = col.save(p)
+  override def save(p: Plot): Unit = col.save(p)
 }

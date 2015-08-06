@@ -4,13 +4,13 @@ import com.edawg878.bukkit.plot.Plot._
 import com.edawg878.bukkit.plot._
 import com.edawg878.common.PlotRepository
 import com.edawg878.common.Server.Server
-import org.bukkit.block.{BlockState, Block}
+import org.bukkit.block.Block
 import org.bukkit.event.entity.{EntityDamageByEntityEvent, EntityExplodeEvent, EntityChangeBlockEvent}
 import org.bukkit.event.hanging.{HangingBreakByEntityEvent, HangingPlaceEvent}
 import org.bukkit.event.player._
 import org.bukkit.event.vehicle.VehicleDestroyEvent
 import org.bukkit.event.world.{WorldLoadEvent, StructureGrowEvent}
-import org.bukkit.{Bukkit, Difficulty, World, Location}
+import org.bukkit._
 import org.bukkit.entity._
 import org.bukkit.event.block._
 import org.bukkit.entity.EntityType._
@@ -26,15 +26,14 @@ import scala.collection.JavaConversions._
 /**
  * @author EDawg878 <EDawg878@gmail.com>
  */
-class PlotListener(val pms: World => Option[PlotManager], plotDb: PlotRepository, val server: Server, val bukkitServer: org.bukkit.Server) extends Listener with PlotHelper {
+class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val server: Server, val bukkitServer: org.bukkit.Server) extends Listener with PlotHelper {
 
   def cancel(st: Status, p: Player, loc: Location, f: Player => Unit): Boolean = {
     if (!isPlotWorld(loc)) false
     else {
-      val r = has(st, p, loc, server)
-      val cancel = r != True
-      if (cancel && r != Error) f(p)
-      cancel
+      val r = has(st, p, loc)
+      if (r != True && r != Error) f(p)
+      r != True
     }
   }
 
@@ -44,14 +43,14 @@ class PlotListener(val pms: World => Option[PlotManager], plotDb: PlotRepository
   }
 
   def cancelOrResetExpiration(ev: Cancellable, p: Player, loc: Location): Unit = {
-    pms(loc.getWorld) foreach { pm =>
+    resolver(loc.getWorld) foreach { w =>
       cancel(ev, p, loc)
       if (!ev.isCancelled)
-        pm.getPlot(pm.getPlotId(loc))
+        w.getPlot(w.getPlotId(loc))
           .flatMap(_.resetExpire)
           .foreach{ plot =>
-            pm.update(plot)
-            plotDb.save(pm.w, plot)
+            w.update(plot)
+            plotDb.save(plot)
           }
     }
   }
@@ -59,10 +58,10 @@ class PlotListener(val pms: World => Option[PlotManager], plotDb: PlotRepository
   def isInterplot(plotA: Plot, locA: Location, locB: Location): Boolean = {
     if (!locA.getWorld.equals(locB.getWorld) || !isPlotWorld(locA)) false
     else {
-      pms(locB.getWorld).fold(false) { pm =>
-        val idB = pm.getPlotId(locB)
-        pm.getPlot(idB).fold(true /* plot -> empty plot */) { plotB =>
-          if (!plotA.roadAccess && (pm.w.isPath(locB) || pm.w.isBorder(locB) || pm.w.isPath(locA) || pm.w.isBorder(locA))) true // plot -> road w/o road access
+      resolver(locB.getWorld).fold(false) { w =>
+        val idB = w.getPlotId(locB)
+        w.getPlot(idB).fold(true /* plot -> empty plot */) { plotB =>
+          if (!plotA.roadAccess && (w.config.isPath(locB) || w.config.isBorder(locB) || w.config.isPath(locA) || w.config.isBorder(locA))) true // plot -> road w/o road access
           else if (plotA.id == plotB.id) false // same plot
           else if (plotB.isTrusted(plotA.owner)) false // owner is trusted
           else plotA.owner != plotB.owner
@@ -72,7 +71,7 @@ class PlotListener(val pms: World => Option[PlotManager], plotDb: PlotRepository
   }
 
   def cancelInterplot(ev: Cancellable, locA: Location, locB: Location): Unit = {
-    pms(locA.getWorld) foreach { pm =>
+    resolver(locA.getWorld) foreach { pm =>
       val idA = pm.getPlotId(locA)
       if (pm.getPlot(idA).fold(true)(isInterplot(_, locA, locB)))
         ev.setCancelled(true)
@@ -232,7 +231,7 @@ class PlotListener(val pms: World => Option[PlotManager], plotDb: PlotRepository
     val loc = ev.getEgg.getLocation
     if (isPlotWorld(loc)) {
       val p = ev.getPlayer
-      val r = has(Trusted, p, loc, server)
+      val r = has(Trusted, p, loc)
       if (r != True) {
         if (r != Error) p.sendMessage(err"You must be trusted to the plot in order to throw eggs")
         ev.setHatching(false)
@@ -261,21 +260,20 @@ class PlotListener(val pms: World => Option[PlotManager], plotDb: PlotRepository
   def onPlayerMove(ev: PlayerMoveEvent): Unit = {
     if (ev.getFrom.getBlockX != ev.getTo.getBlockX
       || ev.getFrom.getBlockZ != ev.getTo.getBlockZ) {
-      pms(ev.getTo.getWorld) foreach { pm =>
+      resolver(ev.getTo.getWorld) foreach { pm =>
         val p = ev.getPlayer
-        def knockback(b: Border): Unit = ev.setTo(pm.border.knockback(ev.getTo))
         if (pm.border.isPast(ev.getTo)) {
-          knockback(pm.border)
+          ev.setTo(pm.border.knockback(ev.getTo))
           p.sendMessage(err"You have reached the end of this world")
         } else {
           val id = pm.getPlotId(ev.getTo)
           pm.getPlot(id) foreach { plot =>
             plot.entryStatus(p) match {
               case Denied =>
-                knockback(plot.id.border(pm.w))
+                // TODO knockback
                 p.sendMessage(err"You are banned from this plot")
               case Closed =>
-                knockback(plot.id.border(pm.w))
+                // TODO knockback
                 p.sendMessage(err"This plot is closed to visitors")
               case _ =>
             }
@@ -287,15 +285,15 @@ class PlotListener(val pms: World => Option[PlotManager], plotDb: PlotRepository
 
   @EventHandler(priority = LOWEST, ignoreCancelled = true)
   def onTeleport(ev: PlayerTeleportEvent): Unit = {
-    pms(ev.getTo.getWorld) foreach { pm =>
+    resolver(ev.getTo.getWorld) foreach { pm =>
       Option(ev.getPlayer) foreach { p =>
         val id = pm.getPlotId(ev.getTo)
         pm.getPlot(id) foreach { plot =>
           if (!plot.status(p).has(NotBanned)) {
-            if (plot.isBanned(p)) {
+            if (plot.isBanned(p.getUniqueId)) {
               ev.setCancelled(true)
               p.sendMessage(err"You cannot teleport to a plot that you are banned from")
-            } else if (plot.closed && !plot.isAdded(p)) {
+            } else if (plot.closed && !plot.isAdded(p.getUniqueId)) {
               ev.setCancelled(true)
               p.sendMessage(err"You cannot teleport to a plot that is closed to visitors")
             }

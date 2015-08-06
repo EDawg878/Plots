@@ -3,7 +3,7 @@ package com.edawg878.bukkit.commands
 import com.edawg878.common.BukkitCommandHandler.BasicBukkitCommand
 import com.edawg878.common._
 import com.edawg878.common.Server.Server
-import net.md_5.bungee.api.ChatColor
+import org.bukkit.ChatColor._
 import org.bukkit.command.CommandSender
 import com.edawg878.common.DateUnit.Implicits.standardUnits
 import com.edawg878.common.Color.Formatter
@@ -30,14 +30,14 @@ object BasicCommand {
     def meta = CommandMeta(cmd = "seen", perm = None)
 
     def handle(sender: CommandSender, c: BasicConfig): Unit = onComplete(sender, c.data) { data =>
-      val online = if (server.isOnline(data.id)) ChatColor.GREEN + "online" else ChatColor.DARK_RED + "offline"
+      val online = if (server.isOnline(data.id)) GREEN + "online" else DARK_RED + "offline"
       val seen = DateUnit.format(data.playTime.activity).mkString(" ")
       sender.sendMessage(info"${data.name} has been $online for $seen")
     }
 
   }
 
-  class WhoIsCommand(val db: PlayerRepository, server: Server) extends BasicBukkitCommand {
+  class WhoIsCommand(val db: PlayerRepository) extends BasicBukkitCommand {
 
     def meta = CommandMeta(cmd = "whois", perm = None)
 

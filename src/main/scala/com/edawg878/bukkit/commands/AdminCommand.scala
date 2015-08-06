@@ -28,7 +28,7 @@ object AdminCommand {
     val default = Config(op = Reload)
 
     val parser = new BukkitOptionParser[Config]("/admin") {
-      arg[AdminOp]("<operation>") required() action { (x,c) =>
+      arg[AdminOp]("<operation>") required() action { (x, c) =>
         c.copy(op = x)
       } text "operations: reload"
     }
