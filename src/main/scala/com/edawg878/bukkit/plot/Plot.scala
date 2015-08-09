@@ -25,6 +25,7 @@ import scala.util.Try
 import scala.collection.mutable
 import com.edawg878.bukkit.BukkitConversions._
 import com.edawg878.common.Color.Formatter
+import com.edawg878.bukkit.plot.PlotHelper._
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
@@ -76,6 +77,8 @@ case class PlotWorldConfig(name: String,
   def isBorder(loc: Location): Boolean = isBorder(loc.getBlockX, loc.getBlockZ)
 
   def isPath(loc: Location): Boolean = isPath(loc.getBlockX, loc.getBlockZ)
+
+  def isRoad(loc: Location): Boolean = isPath(loc) || isBorder(loc)
 
 }
 
@@ -176,6 +179,7 @@ object Plot {
   case object Denied extends EntryStatus
   case object Closed extends EntryStatus
 
+  /*
   object Result {
     def apply(b: Boolean) = if (b) True else False
   }
@@ -184,6 +188,7 @@ object Plot {
   case object Error extends Result
   case object True extends Result
   case object False extends Result
+  */
 
   def newExpiration: LocalDate = LocalDate.now.plusDays(30)
 
@@ -225,8 +230,6 @@ case class Plot(id: PlotId,
   def clearAdded: Plot = copy(helpers = Set(), trusted = Set())
 
   def clearBanned: Plot = copy(banned = Set())
-
-  def toggleRoadAccess: Plot = copy(roadAccess = !roadAccess)
 
   def ids: Set[UUID] = helpers ++ trusted ++ banned + owner
 
@@ -385,6 +388,20 @@ case class PlotWorld(config: PlotWorldConfig, plots: TrieMap[PlotId, Plot], var 
 
 }
 
+object PlotHelper {
+
+  /*
+  sealed trait Result
+  object Result { def apply(b: Boolean) = if (b) Right() else Left() }
+  case class Right() extends Result
+  case class Left(s: Option[String]) extends Result
+  object Left {
+    def apply() = Left(None)
+    def apply(s: String) = Left(Some(s))
+  }*/
+
+}
+
 trait PlotHelper {
   
   def resolver: PlotWorldResolver
@@ -408,45 +425,40 @@ trait PlotHelper {
  def getPlot(loc: Location): Option[Plot] =
    resolver(loc.getWorld).flatMap(w => w.getPlot(w.getPlotId(loc)))
 
-  private def failure(p: Player, s: String*): Result = { s.foreach(p sendMessage); Error }
+  type Result = Either[String, Unit]
 
-  def has(st: Status, p: Player, loc: Location): Result = {
-    resolver(loc.getWorld).fold[Result](False) { w =>
-      if (!w.config.buildOnFloor && loc.getBlockY <= 0) failure(p, err"You cannot build on the floor level")
+  def has(st: Status, p: Player, loc: Location, s: String): Result = {
+    def eval(cond: Boolean): Result = if (cond) Right() else Left(s)
+    resolver(loc.getWorld).fold[Result](Left(s)) { w =>
+      if (!w.config.buildOnFloor && loc.getBlockY <= 0) Left(err"You cannot build on the floor level")
       else {
-        if (p hasPermission "plot.admin") True
-        else w.getPlot(w.getPlotId(loc))
-            .fold(failure(p, err"You cannot build here")){ plot =>
-          if (!plot.roadAccess && (w.config.isBorder(loc) || w.config.isPath(loc))) {
-            failure(p, err"You cannot build here")
-          } else {
+        if (p.hasPermission("plot.admin")) Right()
+        else w.getPlot(w.getPlotId(loc)).fold[Result](Left(err"You cannot build here")) { plot =>
+          if (!plot.roadAccess && w.config.isRoad(loc)) Left(err"You cannot build here")
+          else {
             val pid = p.getUniqueId
             st match {
               case HelperOnline =>
-                if (plot.isOwner(pid) || plot.isTrusted(pid)) True
-                else if (plot.isHelper(pid)) {
-                  if (server.isOnline(plot.owner)) True
-                  else {
-                    p.sendMessage(err"You cannot modify the plot while its owner is offline unless you are trusted")
-                    Error
-                  }
-                } else {
-                  False
-                }
+                if (plot.isOwner(pid) || plot.isTrusted(pid)) Right()
+                else if (plot.isHelper(pid))
+                  if (server.isOnline(plot.owner)) Right()
+                  else Left(err"You cannot modify the plot while its owner is offline unless you are trusted")
+                else Left(s)
               case HelperOffline =>
-                Result(plot.isOwner(pid) || plot.isHelper(pid) || plot.isTrusted(pid))
+                eval(plot.isOwner(pid) || plot.isHelper(pid) || plot.isTrusted(pid))
               case Owner =>
-                Result(plot.isOwner(pid))
+                eval(plot.isOwner(pid))
               case Trusted =>
-                Result(plot.isOwner(pid) || plot.isTrusted(pid))
+                eval(plot.isOwner(pid) || plot.isTrusted(pid))
               case Banned =>
-                Result(plot.isBanned(pid))
+                eval(plot.isBanned(pid))
               case NotBanned =>
-                Result(!plot.isBanned(pid))
+                eval(!plot.isBanned(pid))
               case Admin =>
-                False
+                Left(s)
             }
-          }}
+          }
+        }
       }
     }
   }

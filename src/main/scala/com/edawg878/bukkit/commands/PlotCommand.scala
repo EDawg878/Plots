@@ -51,6 +51,7 @@ object PlotCommand {
   case object Clear extends SubCommand
   case object Reset extends SubCommand
   case object Teleport extends SubCommand
+  case object Road extends SubCommand
 
   case class Config(sub: Option[SubCommand], player: Player, target: String, home: String, id: String) {
     def pid: UUID = player.getUniqueId
@@ -136,6 +137,9 @@ object PlotCommand {
           c.copy(id = x)
         } text "plot coordinates x;z"
       )
+      cmd("road") action { (_, c) =>
+        c.copy(sub = Some(Road))
+      } text "toggle road access"
       checkConfig { c =>
         if (c.sub.isDefined) success else failure("You must specify a subcommand")
       }
@@ -358,12 +362,11 @@ object PlotCommand {
         case Protect =>
           asPlayer(sender) { p =>
             withPlotStatus(p, Admin, _.sendMessage(err"You do not have permission to protect the plot")) { (w, plot) =>
-              val (updated, s) =
-                if (plot.protect) (plot.copy(protect = false), info"The plot has been protected")
-                else (plot.copy(protect = true), info"The plot is no longer protected")
-              w.update(updated)
-              plotDb.save(updated)
-              p.sendMessage(s)
+              val toggled = plot.copy(protect = !plot.protect)
+              w.update(toggled)
+              plotDb.save(toggled)
+              if (toggled.protect) p.sendMessage(info"The plot has been protected")
+              else p.sendMessage(info"The plot is no longer protected")
             }
           }
         case Auto =>
@@ -431,6 +434,16 @@ object PlotCommand {
               } else {
                 p.sendMessage(err"You do not have permission to teleport to plot coordinates")
               }
+            }
+          }
+        case Road =>
+          asPlayer(sender) { p =>
+            withPlotStatus(p, Admin, _.sendMessage(err"You do not have permission to toggle road access")) { (w, plot) =>
+              val toggled = plot.copy(roadAccess = !plot.roadAccess)
+              val action = if (toggled.roadAccess) "enabled" else "disabled"
+              w.update(toggled)
+              plotDb.save(toggled)
+              p.sendMessage(info"Road access has been $action")
             }
           }
       }

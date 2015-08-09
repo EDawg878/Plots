@@ -58,7 +58,7 @@ object PlotClearConversation {
       }
 
     def begin(p: Player, id: PlotId): Unit = {
-      pending.put(p.getUniqueId, (p.getWorld.getUID, id))
+      pending(p.getUniqueId) = (p.getWorld.getUID, id)
       factory.buildConversation(p).begin()
     }
 

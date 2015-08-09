@@ -21,47 +21,52 @@ import org.bukkit.event.block.Action._
 import org.bukkit.Difficulty._
 import scala.collection.JavaConverters._
 import scala.collection.JavaConversions._
-
+import com.edawg878.bukkit.plot.PlotHelper._
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
  */
 class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val server: Server, val bukkitServer: org.bukkit.Server) extends Listener with PlotHelper {
 
-  def cancel(st: Status, p: Player, loc: Location, f: Player => Unit): Boolean = {
-    if (!isPlotWorld(loc)) false
-    else {
-      val r = has(st, p, loc)
-      if (r != True && r != Error) f(p)
-      r != True
-    }
+  val defaultStatus = HelperOnline
+  val defaultError = err"You cannot build here"
+
+  def test(p: Player, loc: Location): Result = test(p, loc, defaultStatus, defaultError)
+  def resetExpiration(p: Player, loc: Location): Result = resetExpiration(p, loc, defaultStatus, defaultError)
+
+  def test(p: Player, loc: Location, st: Status, s: String): Result = {
+    val r = has(st, p, loc, s)
+    r.left.foreach(p.sendMessage)
+    r
   }
 
-  def cancel(ev: Cancellable, p: Player, loc: Location, st: Status = HelperOnline, s: String = err"You cannot build here"): Unit = {
-    if (cancel(st, p, loc, _.sendMessage(s)))
-      ev.setCancelled(true)
-  }
-
-  def cancelOrResetExpiration(ev: Cancellable, p: Player, loc: Location): Unit = {
-    resolver(loc.getWorld) foreach { w =>
-      cancel(ev, p, loc)
-      if (!ev.isCancelled)
+  def resetExpiration(p: Player, loc: Location, st: Status, s: String): Result = {
+    val r = test(p, loc, st, s)
+    r.right.foreach { _ =>
+      resolver(loc.getWorld) foreach { w =>
         w.getPlot(w.getPlotId(loc))
           .flatMap(_.resetExpire)
-          .foreach{ plot =>
+          .foreach { plot =>
             w.update(plot)
             plotDb.save(plot)
           }
+      }
     }
+    r
   }
 
+  def cancel(r: Result, f: => Unit): Unit = if (r.isLeft) f
+  def cancel(ev: Cancellable, r: Result): Unit = cancel(r, ev.setCancelled(true))
+  def cancel(ev: Cancellable, cond: Boolean): Unit = if (cond) ev.setCancelled(true)
+
   def isInterplot(plotA: Plot, locA: Location, locB: Location): Boolean = {
-    if (!locA.getWorld.equals(locB.getWorld) || !isPlotWorld(locA)) false
+    if (locA.getWorld != locB.getWorld || !isPlotWorld(locA)) false
     else {
       resolver(locB.getWorld).fold(false) { w =>
         val idB = w.getPlotId(locB)
         w.getPlot(idB).fold(true /* plot -> empty plot */) { plotB =>
-          if (!plotA.roadAccess && (w.config.isPath(locB) || w.config.isBorder(locB) || w.config.isPath(locA) || w.config.isBorder(locA))) true // plot -> road w/o road access
+          if (!plotA.roadAccess && w.config.isRoad(locA)) true // plot w/o road access -> road
+          else if (!plotB.roadAccess && w.config.isRoad(locB)) true // plot w/o road access -> road
           else if (plotA.id == plotB.id) false // same plot
           else if (plotB.isTrusted(plotA.owner)) false // owner is trusted
           else plotA.owner != plotB.owner
@@ -70,19 +75,30 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
     }
   }
 
-  def cancelInterplot(ev: Cancellable, locA: Location, locB: Location): Unit = {
-    resolver(locA.getWorld) foreach { pm =>
-      val idA = pm.getPlotId(locA)
-      if (pm.getPlot(idA).fold(true)(isInterplot(_, locA, locB)))
-        ev.setCancelled(true)
-    }
+  def testInterplot(locA: Location, locB: Location): Boolean =
+    resolver(locA.getWorld).fold(false)(w => w.getPlot(w.getPlotId(locA)).fold(true)(isInterplot(_, locA, locB)))
+
+  def testPistonExtend(ev: BlockPistonExtendEvent, bs: Seq[Block]): Boolean = {
+    val locA = ev.getBlock.getLocation
+    val face = ev.getDirection
+    getPlot(locA).fold(false)(plot =>
+      bs.map(_.getLocation.add(face.getModX, face.getModY, face.getModZ))
+        .exists(isInterplot(plot, locA, _)))
+  }
+
+  def testPistonRetract(ev: BlockPistonRetractEvent, bs: Seq[Block]): Boolean = {
+    val locA = ev.getBlock.getLocation
+    getPlot(locA).fold(false)(plot =>
+      bs.map(_.getLocation).exists(isInterplot(plot, locA, _)))
   }
 
   @EventHandler
-  def onBlockBreak(ev: BlockBreakEvent): Unit = cancelOrResetExpiration(ev, ev.getPlayer, ev.getBlock.getLocation)
+  def onBlockBreak(ev: BlockBreakEvent): Unit =
+    cancel(ev, resetExpiration(ev.getPlayer, ev.getBlock.getLocation))
 
   @EventHandler
-  def onBlockPlace(ev: BlockPlaceEvent): Unit = cancelOrResetExpiration(ev, ev.getPlayer, ev.getBlock.getLocation)
+  def onBlockPlace(ev: BlockPlaceEvent): Unit =
+    cancel(ev, resetExpiration(ev.getPlayer, ev.getBlock.getLocation))
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
   def onEntityChangeBlock(ev: EntityChangeBlockEvent): Unit = {
@@ -90,7 +106,7 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
     if (isPlotWorld(loc)) {
       ev.getEntity match {
         case p: Player =>
-          cancel(ev, p, loc)
+          cancel(ev, test(p, loc))
         case e if !e.isInstanceOf[FallingBlock] =>
           ev.setCancelled(true)
         case _ =>
@@ -100,8 +116,7 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
   def onEntityBlockForm(ev: EntityBlockFormEvent): Unit = {
-    val loc = ev.getBlock.getLocation
-    if (isPlotWorld(loc) && !ev.getEntity.isInstanceOf[Player])
+    if (isPlotWorld(ev.getBlock.getLocation) && !ev.getEntity.isInstanceOf[Player])
       ev.setCancelled(true)
   }
 
@@ -112,13 +127,12 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
       .add(face.getModX, face.getModY, face.getModZ)
       .getBlock
       .getLocation
-    cancel(ev, ev.getPlayer, loc, Trusted, err"You must be trusted to the plot in order to empty buckets")
+    cancel(ev, test(ev.getPlayer, loc, Trusted, err"You must be trusted to the plot in order to empty buckets"))
   }
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
   def onPlayerBucketFill(ev: PlayerBucketFillEvent): Unit =
-    cancel(ev, ev.getPlayer, ev.getBlockClicked.getLocation, Trusted, err"You must be trusted to the plot in order to fill buckets")
-
+    cancel(ev, test(ev.getPlayer, ev.getBlockClicked.getLocation, Trusted, err"You must be trusted to the plot in order to fill buckets"))
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
   def onPlayerInteract(ev: PlayerInteractEvent): Unit = {
@@ -138,67 +152,52 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
   def onBlockSpread(ev: BlockSpreadEvent): Unit =
-    cancelInterplot(ev, ev.getBlock.getLocation, ev.getSource.getLocation)
+    cancel(ev, testInterplot(ev.getBlock.getLocation, ev.getSource.getLocation))
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
-  def onBlockFade(ev: BlockFadeEvent): Unit = {
-    if (isPlotWorld(ev.getBlock.getLocation))
-      ev.setCancelled(true)
-  }
+  def onBlockFade(ev: BlockFadeEvent): Unit =
+    cancel(ev, isPlotWorld(ev.getBlock.getLocation))
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
   def onBlockFromTo(ev: BlockFromToEvent): Unit =
-    cancelInterplot(ev, ev.getBlock.getLocation, ev.getToBlock.getLocation)
-
-  def onPistonMove(ev: BlockPistonEvent, bs: Seq[Block]): Unit = {
-    val locA = ev.getBlock.getLocation
-    val cancel = getPlot(locA).fold(true) { plot =>
-      val face = ev.getDirection
-      bs.exists { b =>
-        val locB = b.getLocation.add(face.getModX, face.getModY, face.getModZ)
-        isInterplot(plot, locA, locB)
-      }
-    }
-    if (cancel) ev.setCancelled(true)
-  }
+    cancel(ev, testInterplot(ev.getBlock.getLocation, ev.getToBlock.getLocation))
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
-  def onBlockPistonExtend(ev: BlockPistonExtendEvent): Unit = onPistonMove(ev, ev.getBlocks.asScala)
+  def onBlockPistonExtend(ev: BlockPistonExtendEvent): Unit =
+    cancel(ev, testPistonExtend(ev, ev.getBlocks.asScala))
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
-  def onBlockPistonRetract(ev: BlockPistonRetractEvent): Unit = onPistonMove(ev, ev.getBlocks.asScala)
+  def onBlockPistonRetract(ev: BlockPistonRetractEvent): Unit =
+    cancel(ev, testPistonRetract(ev, ev.getBlocks.asScala))
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
   def onStructureGrow(ev: StructureGrowEvent): Unit = {
     val locA = ev.getLocation
-    getPlot(locA) foreach { plot =>
-      ev.getBlocks.removeAll {
-        ev.getBlocks.asScala.filter(b => b != null && isInterplot(plot, locA, b.getLocation))
-      }
-    }
+    getPlot(locA).foreach(plot =>
+      ev.getBlocks.removeAll(
+        ev.getBlocks.asScala.filter(b => b != null && isInterplot(plot, locA, b.getLocation))))
   }
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
-  def onEntityExplode(ev: EntityExplodeEvent): Unit = {
-    if (Option(ev.getLocation).fold(false)(isPlotWorld)) ev.setCancelled(true)
-  }
+  def onEntityExplode(ev: EntityExplodeEvent): Unit =
+    Option(ev.getLocation).foreach(loc => cancel(ev, isPlotWorld(loc)))
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
-  def onBlockIgnite(ev: BlockIgniteEvent): Unit = {
-    Option(ev.getBlock) foreach { b =>
-      cancel(ev, ev.getPlayer, b.getLocation, Trusted, err"You must be trusted to the plot in order to ignite blocks")
-    }
-  }
+  def onBlockIgnite(ev: BlockIgniteEvent): Unit =
+    Option(ev.getPlayer)
+      .map(p => cancel(ev, test(p, ev.getBlock.getLocation, Trusted, err"You must be trusted to the plot in order to ignite blocks")))
+      .getOrElse(ev.setCancelled(true))
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
-  def onHangingPlace(ev: HangingPlaceEvent): Unit = cancel(ev, ev.getPlayer, ev.getBlock.getLocation)
+  def onHangingPlace(ev: HangingPlaceEvent): Unit =
+    cancel(ev, test(ev.getPlayer, ev.getBlock.getLocation))
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
   def onHangingBreakByEntity(ev: HangingBreakByEntityEvent): Unit = {
     val loc = ev.getEntity.getLocation
     if (isPlotWorld(loc)) {
       ev.getRemover match {
-        case p: Player => cancel(ev, p, loc)
+        case p: Player => cancel(ev, test(p, loc))
         case _ =>
       }
     }
@@ -210,7 +209,7 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
     if (isPlotWorld(loc)) {
       ev.getRightClicked.getType match {
         case MINECART | BOAT =>
-        case _ => cancel(ev, ev.getPlayer, loc)
+        case _ => cancel(ev, test(ev.getPlayer, loc))
       }
     }
   }
@@ -220,37 +219,26 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
     val loc = ev.getEntity.getLocation
     if (isPlotWorld(loc) && !ev.getEntity.isInstanceOf[Player]) {
       ev.getDamager match {
-        case p: Player => cancel(ev, p, loc)
+        case p: Player => cancel(ev, test(p, loc))
         case _ => ev.setCancelled(true)
       }
     }
   }
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
-  def onPlayerEggThrow(ev: PlayerEggThrowEvent): Unit = {
-    val loc = ev.getEgg.getLocation
-    if (isPlotWorld(loc)) {
-      val p = ev.getPlayer
-      val r = has(Trusted, p, loc)
-      if (r != True) {
-        if (r != Error) p.sendMessage(err"You must be trusted to the plot in order to throw eggs")
-        ev.setHatching(false)
-      }
-    }
-  }
+  def onPlayerEggThrow(ev: PlayerEggThrowEvent): Unit =
+    cancel(test(ev.getPlayer, ev.getEgg.getLocation), ev.setHatching(false))
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
-  def onBlockBurn(ev: BlockBurnEvent): Unit = {
-    if (isPlotWorld(ev.getBlock.getLocation))
-      ev.setCancelled(true)
-  }
+  def onBlockBurn(ev: BlockBurnEvent): Unit =
+    cancel(ev, isPlotWorld(ev.getBlock.getLocation))
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
   def onVehicleDestroy(ev: VehicleDestroyEvent): Unit = {
     val loc = ev.getVehicle.getLocation
     if (isPlotWorld(loc)) {
       ev.getAttacker match {
-        case p: Player => cancel(ev, p, loc)
+        case p: Player => cancel(ev, test(p, loc))
         case _ =>
       }
     }
