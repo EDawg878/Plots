@@ -167,11 +167,11 @@ object PlotCommand {
     def handle(sender: CommandSender, c: Config): Unit = {
       c.sub collect {
         case Info =>
-          asPlayer(sender) { p =>
-            inPlotWorld(p) { w =>
+          asPlayer(sender)(p =>
+            inPlotWorld(p){ w =>
               val id = w.getPlotId(p.getLocation)
               w.getPlot(id).map { plot =>
-                names(plot.ids).map { nm =>
+                names(plot.ids).foreach { nm =>
                   p.sendMessage(info"Plot ID: $id")
                   p.sendMessage(info"Owner: ${nm.getOrElse(plot.owner, plot.owner.toString)}")
                   p.sendMessage(info"Expiration: ${plot.ExpirationFormatter.format(plot.expirationDate)}")
@@ -184,7 +184,7 @@ object PlotCommand {
                 }
               }.getOrElse(p.sendMessage(info"Vacant plot ($id)"))
             }
-          }
+          )
         case Claim =>
           asPlayer(sender) { p =>
             inPlotWorld(p) { w =>
@@ -220,11 +220,10 @@ object PlotCommand {
             inPlotWorld(p) { w =>
               def home(pid: UUID): Unit = Try(c.home.toInt).toOption
                 .fold(w.getHome(pid, c.home))(w.getHome(pid, _))
-                .fold(p.sendMessage(err"Home '${c.home}' not found"))(plot =>
-                server.sync {
+                .fold(p.sendMessage(err"Home '${c.home}' not found")){ plot =>
                   p.sendMessage(info"Teleporting to plot (${plot.id})")
-                  p.teleport(w.getHomeLocation(p.getWorld, plot.id))
-                })
+                  server.sync(p.teleport(w.getHomeLocation(p.getWorld, plot.id)))
+                }
               c.sub collect {
                 case Home => home(p.getUniqueId)
                 case Visit => onComplete(sender, playerDb.find(c.target).map(_.id))(home)
@@ -397,6 +396,12 @@ object PlotCommand {
             }
           }
         case Clear =>
+          asPlayer(sender).
+            .right.map(p => withPlotStatus(p, Owner, ""))
+            .right.map { (w, plot) =>
+
+            }
+
           asPlayer(sender) { p =>
             withPlotStatus(p, Owner, _.sendMessage(err"You do not have permission to clear the plot")) { (w, plot) =>
               if (plot.protect) {
@@ -423,7 +428,7 @@ object PlotCommand {
             }
           }
         case Teleport =>
-          asPlayer(sender) { p =>
+          asPlayer(sender)(p =>
             inPlotWorld(p) { w =>
               if (p.hasPermission("plot.admin")) {
                 PlotId.parse(w.config, c.id) map { id =>
@@ -435,9 +440,9 @@ object PlotCommand {
                 p.sendMessage(err"You do not have permission to teleport to plot coordinates")
               }
             }
-          }
+          )
         case Road =>
-          asPlayer(sender) { p =>
+          asPlayer(sender)(p =>
             withPlotStatus(p, Admin, _.sendMessage(err"You do not have permission to toggle road access")) { (w, plot) =>
               val toggled = plot.copy(roadAccess = !plot.roadAccess)
               val action = if (toggled.roadAccess) "enabled" else "disabled"
@@ -445,7 +450,7 @@ object PlotCommand {
               plotDb.save(toggled)
               p.sendMessage(info"Road access has been $action")
             }
-          }
+          )
       }
     }
 

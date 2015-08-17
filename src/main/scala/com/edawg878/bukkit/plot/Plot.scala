@@ -12,6 +12,7 @@ import com.edawg878.common.Server.Server
 import org.bukkit.Material._
 import org.bukkit.block.Biome
 import org.bukkit.block.Biome._
+import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import org.bukkit.generator.ChunkGenerator
 import org.bukkit.generator.ChunkGenerator.BiomeGrid
@@ -411,10 +412,53 @@ trait PlotHelper {
 
   def isPlotWorld(loc: Location): Boolean = isPlotWorld(loc.getWorld)
 
-  def inPlotWorld(p: Player)(pm: PlotWorld => Unit): Unit =
-    resolver(p.getWorld).map(pm).getOrElse(p.sendMessage(err"You must be in a plot world to execute this command"))
+  def inPlotWorld(p: Player)(w: PlotWorld => Unit): Unit =
+    resolver(p.getWorld).map(w).getOrElse(p.sendMessage(err"You must be in a plot world to execute this command"))
 
-  def withPlotStatus(p: Player, st: Status, err: Player => Unit)(f: (PlotWorld, Plot) => Unit): Unit =
+  // sender -> player -> plot world -> plot ~> status
+
+  def asPlayer(s: CommandSender): Either[String, Player] = s match {
+    case p: Player => Right(p)
+    case _ => Left(err"You must be online to execute this command")
+  }
+
+  def inPlotWorld(bw: World): Either[String, PlotWorld] =
+    resolver(bw).map(Right.apply).getOrElse(Left(err"You must be in a plot world to execute this command"))
+
+  def inPlotWorld(p: Player): Either[String, PlotWorld] = inPlotWorld(p.getWorld)
+
+  def inPlot(loc: Location): Either[String, (PlotWorld, Plot)] = {
+    inPlotWorld(loc.getWorld) match {
+      case Left(s) => Left(s)
+      case Right(w) =>
+        w.getPlot(w.getPlotId(loc))
+          .map(plot => Right((w, plot)))
+          .getOrElse(Left(err"No plot found"))
+    }
+  }
+  def inPlot(p: Player): Either[String, (PlotWorld, Plot)] = inPlot(p.getLocation)
+
+  def withPlotStatus(p: Player, st: Status, err: String): Either[String, (PlotWorld, Plot)] = {
+    val loc = p.getLocation
+    inPlot(loc) match {
+      case Left(s) => Left(s)
+      case Right((w, plot)) =>
+        if (plot.status(server, p).has(st)) Right((w, plot))
+        else Left(err)
+    }
+  }
+
+  def wwithPlotStatus(p: Player, st: Status): Option[(PlotWorld, Plot)] =
+    resolver(p.getWorld).flatMap { w =>
+      val plot = w.getPlot(w.getPlotId(p.getLocation))
+      if (plot.isEmpty) p.sendMessage(err"No plot found")
+      plot.filter(_.status(server, p).has(st))
+        .map(plot => w -> plot)
+
+
+    }
+
+  def wwithPlotStatus(p: Player, st: Status, err: Player => Unit)(f: (PlotWorld, Plot) => Unit): Unit =
     inPlotWorld(p) { w =>
       w.getPlot(w.getPlotId(p.getLocation)).fold(p.sendMessage(err"No plot found")) { plot =>
         if (plot.status(server, p).has(st)) f(w, plot)
@@ -425,15 +469,13 @@ trait PlotHelper {
  def getPlot(loc: Location): Option[Plot] =
    resolver(loc.getWorld).flatMap(w => w.getPlot(w.getPlotId(loc)))
 
-  type Result = Either[String, Unit]
-
-  def has(st: Status, p: Player, loc: Location, s: String): Result = {
-    def eval(cond: Boolean): Result = if (cond) Right() else Left(s)
-    resolver(loc.getWorld).fold[Result](Left(s)) { w =>
+  def has(st: Status, p: Player, loc: Location, s: String): Either[String, Unit] = {
+    def eval(cond: Boolean) = if (cond) Right() else Left(s)
+    resolver(loc.getWorld) map { w =>
       if (!w.config.buildOnFloor && loc.getBlockY <= 0) Left(err"You cannot build on the floor level")
+      else if (p.hasPermission("plot.admin")) Right()
       else {
-        if (p.hasPermission("plot.admin")) Right()
-        else w.getPlot(w.getPlotId(loc)).fold[Result](Left(err"You cannot build here")) { plot =>
+        w.getPlot(w.getPlotId(loc)) map { plot =>
           if (!plot.roadAccess && w.config.isRoad(loc)) Left(err"You cannot build here")
           else {
             val pid = p.getUniqueId
@@ -458,9 +500,9 @@ trait PlotHelper {
                 Left(s)
             }
           }
-        }
+        } getOrElse(Left(err"You cannot build here"))
       }
-    }
+    } getOrElse(Left(s))
   }
 
 }

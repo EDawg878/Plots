@@ -84,7 +84,7 @@ object BukkitCommandHandler {
 
   abstract class BukkitCommand[C] extends BaseCommand[C, CommandSender] {
 
-    def asPlayer(sender: CommandSender)(f: Player => Unit): Unit = {
+    def aasPlayer(sender: CommandSender)(f: Player => Unit): Unit = {
       sender match {
         case p: Player => f(p)
         case _ => console.printError(sender, "You must be online to execute this command.")
