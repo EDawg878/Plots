@@ -170,7 +170,7 @@ object PlotCommand {
           asPlayer(sender)(p =>
             inPlotWorld(p){ w =>
               val id = w.getPlotId(p.getLocation)
-              w.getPlot(id).map { plot =>
+              w.getPlot(id).fold(p.sendMessage(info"Vacant plot ($id)")) { plot =>
                 names(plot.ids).foreach { nm =>
                   p.sendMessage(info"Plot ID: $id")
                   p.sendMessage(info"Owner: ${nm.getOrElse(plot.owner, plot.owner.toString)}")
@@ -182,7 +182,7 @@ object PlotCommand {
                   p.sendMessage(info"Trusted: ${fmtGroup(plot.trusted, nm)}")
                   p.sendMessage(info"Banned: ${fmtGroup(plot.banned, nm)}")
                 }
-              }.getOrElse(p.sendMessage(info"Vacant plot ($id)"))
+              }
             }
           )
         case Claim =>
@@ -396,12 +396,6 @@ object PlotCommand {
             }
           }
         case Clear =>
-          asPlayer(sender).
-            .right.map(p => withPlotStatus(p, Owner, ""))
-            .right.map { (w, plot) =>
-
-            }
-
           asPlayer(sender) { p =>
             withPlotStatus(p, Owner, _.sendMessage(err"You do not have permission to clear the plot")) { (w, plot) =>
               if (plot.protect) {

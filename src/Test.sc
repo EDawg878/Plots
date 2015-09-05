@@ -1,43 +1,24 @@
-import com.edawg878.bukkit.plot.PlotId
 import scala.annotation.tailrec
-import scala.collection.mutable
-import scala.concurrent.{Await, Future, Promise}
-import scala.concurrent.ExecutionContext.Implicits.global
 
-
-val set = mutable.Set[(Int, Int)]()
+def toBinary(n: Int): String = convert(n, 2)
 
 @tailrec
-def auto(n: Int, x: Int, z: Int): Unit = {
-  println(s"n=$n ($x;$z)")
-  val id = (x, z)
-  if (set contains id)
-    println(s"Already contained ($x,$z)")
-  else
-    set += id
-  if (z < n) auto(n, x, z + 1)
-  else if (x < n) auto(n, x + 1, -n)
-  else auto(n + 1, -(n + 1), -(n + 1))
+def convert(n: Int, b: Int, r: String = ""): String = {
+  if (n == 0) r
+  else convert(b / 2, b, b % 2 + r)
 }
 
-auto(0,0,0)
+toBinary(25)
 
-/*
-Seq(1,2,3).map{e =>
-  val c = 1
-  val b = 3
-  b
+val hex = ('a' to 'f').zip(10 to 15).toMap
+
+def toDecimal(s: String, m: Double, b: Int): Int = {
+  if (s.isEmpty) m.toInt
+  else {
+    val n = if (hex.contains(s.head)) hex(s.head) else s.head
+    toDecimal(s.tail, m + Character.getNumericValue(n) * math.pow(b, s.length - 1), b)
+  }
 }
-*/
 
-//hello Eric my name is anne marie well this is stuff i tupe all of the time
+toDecimal("D1CE", 0, 16)
 
-
-import scala.concurrent.duration._
-
-val p = Promise[Int]()
-val f = p.future
-
-p success(10)
-
-Await.result(f, 10 seconds)

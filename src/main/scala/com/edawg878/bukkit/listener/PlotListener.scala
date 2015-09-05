@@ -31,6 +31,8 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
   val defaultStatus = HelperOnline
   val defaultError = err"You cannot build here"
 
+  type Result = Either[String, Unit]
+
   def test(p: Player, loc: Location): Result = test(p, loc, defaultStatus, defaultError)
   def resetExpiration(p: Player, loc: Location): Result = resetExpiration(p, loc, defaultStatus, defaultError)
 
@@ -184,9 +186,8 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
   def onBlockIgnite(ev: BlockIgniteEvent): Unit =
-    Option(ev.getPlayer)
-      .map(p => cancel(ev, test(p, ev.getBlock.getLocation, Trusted, err"You must be trusted to the plot in order to ignite blocks")))
-      .getOrElse(ev.setCancelled(true))
+    Option(ev.getPlayer).fold(ev.setCancelled(true))(p =>
+      cancel(ev, test(p, ev.getBlock.getLocation, Trusted, err"You must be trusted to the plot in order to ignite blocks")))
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
   def onHangingPlace(ev: HangingPlaceEvent): Unit =

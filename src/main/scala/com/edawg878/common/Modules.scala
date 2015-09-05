@@ -6,7 +6,8 @@ import com.edawg878.bukkit.commands.GroupCommand.GroupCommand
 import com.edawg878.bukkit.commands.PerkCommand.PerkCommand
 import com.edawg878.bukkit.commands.PlotCommand.PlotCommand
 import com.edawg878.bukkit.commands.TierCommand.TierCommand
-import com.edawg878.bukkit.listener.PlotListener
+import com.edawg878.bukkit.listener.{BlockListener, PlotListener}
+import com.edawg878.bukkit.listener.VehicleListener._
 import com.edawg878.bukkit.plot.PlotClearConversation.PlotClearConversation
 import com.edawg878.bukkit.plot._
 import org.bukkit.command.CommandSender
@@ -40,9 +41,9 @@ object Modules {
 
     import com.edawg878.bukkit.BukkitConversions._
 
-    val configFile = plugin.dataFolder.resolve("config.json")
-    val plotWorldConfigFile = plugin.dataFolder.resolve("worlds.json")
-    val plotWorldConfigs = Configuration.load(plugin, plotWorldConfigFile)
+    val configFile = plugin.dataFolder.resolve("vehicles.json")
+    val plotWorldConfig = new Configuration[Seq[PlotWorldConfig]](plugin, "worlds.json")
+    val plotWorldConfigs = { plotWorldConfig.saveDefault(); plotWorldConfig.parse }
     val plotWorlds = loadPlotWorlds
     val playerCache = new PlayerCache
 
@@ -61,8 +62,10 @@ object Modules {
       val fMan = plotWorldConfigs.map(PlotWorld.load(_, plotDb))
       val fManSeq = Future.sequence(fMan)
       val r = Await.result(fManSeq, 5 minutes)
-      r.map{ case w => w.config.name -> w }.toMap
+      r.map{ case w => (w.config.name, w) }.toMap
     }
+
+    def loadVehicleTrackers: Seq[VehicleTracker] = VehicleTracker.load(plugin)
 
     val tierCommand = new TierCommand(playerDb)
     val perkCommand = new PerkCommand(playerDb)
@@ -75,6 +78,9 @@ object Modules {
     val plotCommand = new PlotCommand(bukkitPlotWorldResolver, playerDb, plotDb, server, bukkitServer, plotClearConversation)
 
     val plotListener = new PlotListener(bukkitPlotWorldResolver, plotDb, server, bukkitServer)
+    val vehicleTrackers = loadVehicleTrackers
+    val vehicleListener = VehicleListener.load(server, vehicleTrackers)
+    val blockListener = BlockListener.load(plugin)
 
     val commands = Seq[Command[CommandSender]](tierCommand, perkCommand, creditCommand, groupCommand, playTimeCommand,
       seenCommand, whoIsCommand, plotCommand)

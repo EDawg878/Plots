@@ -2,15 +2,21 @@ package com.edawg878.common
 
 import java.io.{InputStream, IOException}
 import java.nio.file.{Files, Path}
+import java.util
+import java.util.Map.Entry
 import java.util.UUID
 import java.util.logging.Logger
+import com.edawg878.bukkit.listener.VehicleListener.Vehicle
 import com.edawg878.bukkit.plot._
+import com.fasterxml.jackson.annotation.JsonValue
+import com.google.common.collect.HashBiMap
 import org.bukkit.block.Biome
 import play.api.data.validation.ValidationError
 import play.api.libs.json._
 import reactivemongo.bson._
 
 import scala.collection.JavaConverters._
+import scala.collection.JavaConversions._
 
 import org.bukkit._
 
@@ -27,7 +33,7 @@ object Server {
 
     def dataFolder: Path
 
-    def resolveFile(name: String) = dataFolder.resolve(name)
+    def resolveFile(name: String): Path = dataFolder.resolve(name)
 
     @throws(classOf[IOException])
     def saveResource(in: InputStream, out: String): Unit = Files.copy(in, resolveFile(out))
@@ -35,6 +41,12 @@ object Server {
     def getResource(name: String): InputStream
 
     def logger: Logger
+
+    def saveRootResource(path: Path): Unit = {
+      Files.createDirectories(path.getParent)
+      val name = path.getFileName.toString
+      saveResource(getResource(name), name)
+    }
 
   }
 
@@ -228,6 +240,15 @@ object Server {
 
     }
 
+    implicit val vehicleReads = new Reads[Vehicle] {
+      override def reads(json: JsValue): JsResult[Vehicle] = json match {
+        case JsString(s) =>
+          Vehicle.find(s).map(JsSuccess(_)).getOrElse(JsError("Vehicle value expected"))
+        case _ => JsError("Vehicle value expected")
+      }
+
+    }
+
     implicit val biomeWrites = new Writes[Biome] {
       override def writes(b: Biome): JsValue = JsString(b.name.toLowerCase)
     }
@@ -236,22 +257,41 @@ object Server {
 
     implicit val plotStyleFormat = Json.format[PlotStyle]
 
-    implicit val plotWorldConfigFormat = Json.format[PlotWorldConfig]
+    implicit val plotWorldConfigFormat =
+      Json.format[PlotWorldConfig]
+
+    type EntryWriter[K, V] = java.util.Set[Entry[K, V]] => JsObject
+    type EntryReader[K, V] = JsValue => JsResult[HashBiMap[K, V]]
+
+    def hashBiMap[K, V](w: EntryWriter[K, V], r: EntryReader[K, V]) = new Format[HashBiMap[K, V]] {
+      override def writes(m: HashBiMap[K, V]): JsValue = w(m.entrySet)
+      override def reads(json: JsValue): JsResult[HashBiMap[K, V]] = r(json)
+    }
+
+    val uuidEntryWriter: EntryWriter[UUID, UUID] = s =>
+      JsObject(s.asScala.map(e => (e.getKey.toString, JsString(e.getValue.toString))).toSeq)
+
+    val uuidEntryReader: EntryReader[UUID, UUID] = j =>
+      JsSuccess(HashBiMap.create(
+          new java.util.HashMap[String, String]() map {
+            case (k, v) => (UUID.fromString(k), UUID.fromString(v))
+          }
+      ))
+
+    implicit val uuidBiMap: Format[HashBiMap[UUID, UUID]] = hashBiMap[UUID, UUID](uuidEntryWriter, uuidEntryReader)
 
   }
 
+  class Configuration[T](p: Plugin, path: Path) extends CustomCombinators {
 
-  object Configuration extends CustomCombinators {
+    def this(p: Plugin, s: String) = this(p, p.resolveFile(s))
 
-    def load(p: Plugin, f: Path): Seq[PlotWorldConfig] = {
-      saveDefault(p, f)
-      Json.parse(Files.readAllBytes(f)).as[Seq[PlotWorldConfig]]
-    }
+    def parse: T = Json.parse(Files.readAllBytes(path)).as[T]
 
-    def saveDefault(p: Plugin, f: Path): Unit = {
-      if (Files.notExists(f)) {
-        Files.createDirectories(f.getParent)
-        val name = f.getFileName.toString
+    def saveDefault(): Unit = {
+      if (Files.notExists(path)) {
+        Files.createDirectories(path.getParent)
+        val name = path.getFileName.toString
         p.saveResource(p.getResource(name), name)
       }
     }
@@ -262,13 +302,8 @@ object Server {
 
     def save(): Unit
 
-    def saveDefault(plugin: Plugin): Unit = {
-      if (Files.notExists(file)) {
-        Files.createDirectories(file.getParent)
-        val name = file.getFileName.toString
-        plugin.saveResource(plugin.getResource(name), name)
-      }
-    }
+    def saveDefault(plugin: Plugin): Unit =
+      if (Files.notExists(file)) plugin.saveRootResource(file)
 
     def file: Path
 

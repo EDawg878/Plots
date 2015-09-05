@@ -412,53 +412,15 @@ trait PlotHelper {
 
   def isPlotWorld(loc: Location): Boolean = isPlotWorld(loc.getWorld)
 
-  def inPlotWorld(p: Player)(w: PlotWorld => Unit): Unit =
-    resolver(p.getWorld).map(w).getOrElse(p.sendMessage(err"You must be in a plot world to execute this command"))
+  def inPlotWorld(p: Player)(f: PlotWorld => Unit): Unit =
+    resolver(p.getWorld).fold(p.sendMessage(err"You must be in a plot world to execute this command"))(f)
 
-  // sender -> player -> plot world -> plot ~> status
+  def inPlot(p: Player, loc: Location)(f: (PlotWorld, Plot) => Unit): Unit =
+    inPlotWorld(p)(w => w.getPlot(w.getPlotId(loc)).fold(p.sendMessage(err"No plot found"))(plot => (w, plot)))
 
-  def asPlayer(s: CommandSender): Either[String, Player] = s match {
-    case p: Player => Right(p)
-    case _ => Left(err"You must be online to execute this command")
-  }
+  def inPlot(p: Player)(f: (PlotWorld, Plot) => Unit): Unit = inPlot(p, p.getLocation)(f)
 
-  def inPlotWorld(bw: World): Either[String, PlotWorld] =
-    resolver(bw).map(Right.apply).getOrElse(Left(err"You must be in a plot world to execute this command"))
-
-  def inPlotWorld(p: Player): Either[String, PlotWorld] = inPlotWorld(p.getWorld)
-
-  def inPlot(loc: Location): Either[String, (PlotWorld, Plot)] = {
-    inPlotWorld(loc.getWorld) match {
-      case Left(s) => Left(s)
-      case Right(w) =>
-        w.getPlot(w.getPlotId(loc))
-          .map(plot => Right((w, plot)))
-          .getOrElse(Left(err"No plot found"))
-    }
-  }
-  def inPlot(p: Player): Either[String, (PlotWorld, Plot)] = inPlot(p.getLocation)
-
-  def withPlotStatus(p: Player, st: Status, err: String): Either[String, (PlotWorld, Plot)] = {
-    val loc = p.getLocation
-    inPlot(loc) match {
-      case Left(s) => Left(s)
-      case Right((w, plot)) =>
-        if (plot.status(server, p).has(st)) Right((w, plot))
-        else Left(err)
-    }
-  }
-
-  def wwithPlotStatus(p: Player, st: Status): Option[(PlotWorld, Plot)] =
-    resolver(p.getWorld).flatMap { w =>
-      val plot = w.getPlot(w.getPlotId(p.getLocation))
-      if (plot.isEmpty) p.sendMessage(err"No plot found")
-      plot.filter(_.status(server, p).has(st))
-        .map(plot => w -> plot)
-
-
-    }
-
-  def wwithPlotStatus(p: Player, st: Status, err: Player => Unit)(f: (PlotWorld, Plot) => Unit): Unit =
+  def withPlotStatus(p: Player, st: Status, err: Player => Unit)(f: (PlotWorld, Plot) => Unit): Unit =
     inPlotWorld(p) { w =>
       w.getPlot(w.getPlotId(p.getLocation)).fold(p.sendMessage(err"No plot found")) { plot =>
         if (plot.status(server, p).has(st)) f(w, plot)

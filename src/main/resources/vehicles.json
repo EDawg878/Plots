@@ -1,0 +1,22 @@
+[
+  {
+    "name": "boat",
+    "fileName": "boats.json",
+    "entityClass": "org.bukkit.entity.Boat",
+    "types": [
+      "boat"
+    ]
+  }, {
+    "name": "cart",
+    "fileName": "carts.json",
+    "entityClass": "org.bukkit.entity.Minecart",
+    "types": [
+      "minecart",
+      "powered_minecart",
+      "explosive_minecart",
+      "command_minecart",
+      "hopper_minecart",
+      "storage_minecart"
+    ]
+  }
+]

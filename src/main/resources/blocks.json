@@ -1,0 +1,20 @@
+{
+  "disableSnowman": true,
+  "disableIronGolem": true,
+  "disableWither": true,
+  "bannedPlace": [
+    "tnt",
+    "mob_spawner",
+    "dragon_egg",
+    "command"
+  ],
+  "redstone": [
+    "redstone_wire",
+    "diode_block_off",
+    "diode_block_on",
+    "redstone_comparator_off",
+    "redstone_comparator_on",
+    "beacon",
+    "dropper"
+  ]
+}
