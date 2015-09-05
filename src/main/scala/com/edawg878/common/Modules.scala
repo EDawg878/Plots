@@ -6,7 +6,7 @@ import com.edawg878.bukkit.commands.GroupCommand.GroupCommand
 import com.edawg878.bukkit.commands.PerkCommand.PerkCommand
 import com.edawg878.bukkit.commands.PlotCommand.PlotCommand
 import com.edawg878.bukkit.commands.TierCommand.TierCommand
-import com.edawg878.bukkit.listener.{BlockListener, PlotListener}
+import com.edawg878.bukkit.listener.{ItemListener, BlockListener, PlotListener}
 import com.edawg878.bukkit.listener.VehicleListener._
 import com.edawg878.bukkit.plot.PlotClearConversation.PlotClearConversation
 import com.edawg878.bukkit.plot._
@@ -81,10 +81,11 @@ object Modules {
     val vehicleTrackers = loadVehicleTrackers
     val vehicleListener = VehicleListener.load(server, vehicleTrackers)
     val blockListener = BlockListener.load(plugin)
+    val itemListener = ItemListener.load(plugin)
 
     val commands = Seq[Command[CommandSender]](tierCommand, perkCommand, creditCommand, groupCommand, playTimeCommand,
       seenCommand, whoIsCommand, plotCommand)
-    val listeners = Seq[Listener](plotListener)
+    val listeners = Seq[Listener](plotListener, blockListener, itemListener)
 
 
   }

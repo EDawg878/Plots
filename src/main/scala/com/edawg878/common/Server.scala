@@ -11,6 +11,7 @@ import com.edawg878.bukkit.plot._
 import com.fasterxml.jackson.annotation.JsonValue
 import com.google.common.collect.HashBiMap
 import org.bukkit.block.Biome
+import org.bukkit.potion.PotionEffectType
 import play.api.data.validation.ValidationError
 import play.api.libs.json._
 import reactivemongo.bson._
@@ -240,17 +241,16 @@ object Server {
 
     }
 
-    implicit val vehicleReads = new Reads[Vehicle] {
-      override def reads(json: JsValue): JsResult[Vehicle] = json match {
-        case JsString(s) =>
-          Vehicle.find(s).map(JsSuccess(_)).getOrElse(JsError("Vehicle value expected"))
-        case _ => JsError("Vehicle value expected")
-      }
-
-    }
-
     implicit val biomeWrites = new Writes[Biome] {
       override def writes(b: Biome): JsValue = JsString(b.name.toLowerCase)
+    }
+
+    implicit val potionEffectTypeReads = new Reads[PotionEffectType] {
+      override def reads(json: JsValue): JsResult[PotionEffectType] = json match {
+        case JsString(s) =>
+          Option(PotionEffectType.getByName(s)).map(JsSuccess(_)).getOrElse(JsError("Potion effect type expected"))
+        case _ => JsError("Potion effect type expected")
+      }
     }
 
     implicit val materialReads: Reads[Material] = __.read[String].map(Material.matchMaterial)

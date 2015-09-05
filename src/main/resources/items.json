@@ -28,5 +28,8 @@
     "exp_bottle",
     "monster_egg",
     "tnt"
+  ],
+  "bannedPotionEffectTypes": [
+    "invisibility"
   ]
 }
