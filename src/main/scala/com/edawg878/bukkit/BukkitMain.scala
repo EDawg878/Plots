@@ -1,6 +1,8 @@
 package com.edawg878.bukkit
 
+import com.edawg878.bukkit.listener.VehicleTracker
 import com.edawg878.bukkit.plot.PlotGenerator
+import com.edawg878.common.Server.CustomReads
 import com.edawg878.common.{PlayTime, PlayerNotFound, PlayerData, Command}
 import com.edawg878.common.Modules.BukkitModule
 import org.bukkit.command.{CommandExecutor, CommandSender}
@@ -50,6 +52,14 @@ class BukkitMain extends JavaPlugin with Listener {
     getServer.getPluginManager.registerEvents(this, this)
     listeners.foreach(registerListener)
     commands.foreach(registerCommand)
+  }
+
+  override def onDisable(): Unit = {
+    saveVehicles()
+  }
+
+  def saveVehicles(): Unit = {
+    vehicleTrackers.foreach(_.save(plugin))
   }
 
   override def getDefaultWorldGenerator(worldName: String, style: String): ChunkGenerator =

@@ -2,14 +2,21 @@
   {
     "name": "boat",
     "fileName": "boats.json",
-    "entityClass": "org.bukkit.entity.Boat",
+    "entityTypes": [
+      "Boat"
+    ],
     "types": [
       "boat"
     ]
   }, {
     "name": "cart",
     "fileName": "carts.json",
-    "entityClass": "org.bukkit.entity.Minecart",
+    "entityTypes": [
+      "MinecartRideable",
+      "MinecartChest",
+      "MinecartFurnace",
+      "MinecartHopper"
+    ],
     "types": [
       "minecart",
       "powered_minecart",

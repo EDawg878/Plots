@@ -6,16 +6,17 @@ import com.edawg878.bukkit.commands.GroupCommand.GroupCommand
 import com.edawg878.bukkit.commands.PerkCommand.PerkCommand
 import com.edawg878.bukkit.commands.PlotCommand.PlotCommand
 import com.edawg878.bukkit.commands.TierCommand.TierCommand
-import com.edawg878.bukkit.listener.{ItemListener, BlockListener, PlotListener}
+import com.edawg878.bukkit.listener._
 import com.edawg878.bukkit.listener.VehicleListener._
 import com.edawg878.bukkit.plot.PlotClearConversation.PlotClearConversation
 import com.edawg878.bukkit.plot._
+import org.bukkit.block.Biome
 import org.bukkit.command.CommandSender
 import org.bukkit.event.Listener
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
-import com.edawg878.common.Server._
 import reactivemongo.api.{DB, MongoDriver}
+import com.edawg878.common.Server._
 
 import scala.concurrent.{Await, Future}
 
@@ -37,7 +38,7 @@ object Modules {
     def server: Server
   }
 
-  trait BukkitModule extends CommonModule {
+  trait BukkitModule extends CommonModule with CustomReads {
 
     import com.edawg878.bukkit.BukkitConversions._
 
@@ -79,13 +80,14 @@ object Modules {
 
     val plotListener = new PlotListener(bukkitPlotWorldResolver, plotDb, server, bukkitServer)
     val vehicleTrackers = loadVehicleTrackers
+    vehicleTrackers.foreach(t => logger.info(s"loaded ${t.vehicle.name}"))
     val vehicleListener = VehicleListener.load(server, vehicleTrackers)
     val blockListener = BlockListener.load(plugin)
     val itemListener = ItemListener.load(plugin)
 
     val commands = Seq[Command[CommandSender]](tierCommand, perkCommand, creditCommand, groupCommand, playTimeCommand,
       seenCommand, whoIsCommand, plotCommand)
-    val listeners = Seq[Listener](plotListener, blockListener, itemListener)
+    val listeners = Seq[Listener](plotListener, vehicleListener, blockListener, itemListener)
 
 
   }
