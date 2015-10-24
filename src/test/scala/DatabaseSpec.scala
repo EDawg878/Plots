@@ -1,5 +1,6 @@
 import java.util.UUID
 
+import com.edawg878.common.BSONHandlers
 import reactivemongo.bson.BSON
 
 /**

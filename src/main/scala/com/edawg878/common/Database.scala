@@ -244,6 +244,8 @@ trait BSONHandlers {
 
 trait MongoRepository {
 
+  def mongo: DB
+
   def ensureIndex(col: BSONCollection, name: String, index: Index): Unit = {
     logger.info(s"Ensuring index '$name'...")
     col.indexesManager.ensure(index) onComplete {
@@ -261,7 +263,7 @@ trait MongoRepository {
 
 }
 
-class MongoPlayerRepository(mongo: DB, val logger: Logger) extends MongoRepository
+class MongoPlayerRepository(val mongo: DB, val logger: Logger) extends MongoRepository
   with PlayerRepository with BSONHandlers {
 
   val col = mongo.collection[BSONCollection]("players")
@@ -288,7 +290,7 @@ class MongoPlayerRepository(mongo: DB, val logger: Logger) extends MongoReposito
 
 }
 
-class MongoPlotRepository(mongo: DB, val logger: Logger) extends MongoRepository
+class MongoPlotRepository(val mongo: DB, val logger: Logger) extends MongoRepository
   with PlotRepository with BSONHandlers {
 
   val col = mongo.collection[BSONCollection]("plots")

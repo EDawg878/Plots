@@ -2,29 +2,30 @@ package com.edawg878.bukkit.listener
 
 import java.nio.file.{Files, Path}
 import java.util.UUID
+import java.util.function.{Function, BiFunction}
 
 import com.edawg878.bukkit.listener.VehicleTracker.UUIDBiMap
 import com.edawg878.common.Server
-import com.edawg878.common.Server.Server
-import com.edawg878.common.Server.{CustomReads, Server, Configuration, Plugin}
+import com.edawg878.common.Server._
 import com.google.common.collect.HashBiMap
-import org.bukkit.{Bukkit, Material}
-import org.bukkit.entity.{EntityType, Player}
+import org.bukkit.Material
+import org.bukkit.entity.Entity
 import org.bukkit.event.player.PlayerInteractEvent
 import org.bukkit.event.{EventHandler, Listener}
 import org.bukkit.event.vehicle.{VehicleDestroyEvent, VehicleCreateEvent}
 import org.bukkit.inventory.ItemStack
 import play.api.libs.json._
-import scala.collection.JavaConverters._
 import com.edawg878.common.Color.Formatter
 import org.bukkit.event.block.Action._
-import org.bukkit.Material._
+import scala.collection.JavaConversions._
+import scala.concurrent.duration._
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
  */
 case class Vehicle(name: String,
                    fileName: String,
+                   limit: Int,
                    entityTypes: Set[String],
                    types: Set[Material]) {
 
@@ -32,7 +33,7 @@ case class Vehicle(name: String,
 
   def file(p: Plugin): Path = root(p).resolve(fileName)
 
-  def matches(bv: org.bukkit.entity.Vehicle): Boolean = entityTypes.contains(bv.getType.getName)
+  def matches(bv: org.bukkit.entity.Entity): Boolean = entityTypes.contains(bv.getType.getName)
 
   def matches(i: ItemStack): Boolean = types.contains(i.getType)
 
@@ -40,30 +41,25 @@ case class Vehicle(name: String,
 
 object VehicleTracker extends CustomReads {
 
-  type UUIDBiMap = HashBiMap[UUID, UUID]
+  type UUIDBiMap = HashBiMap[UUID, Seq[UUID]]
 
   implicit val vehicleFormat = Json.format[Vehicle]
 
   def vehiclesFile(p: Plugin): Path = p.resolveFile("vehicles.json")
 
-  def config(p: Plugin) = new Configuration[Seq[Vehicle]](p, vehiclesFile(p))
-
   def load(p: Plugin): Seq[VehicleTracker] = {
-    val vehicles = config(p)
-    vehicles.saveDefault()
-    vehicles.parse.map { vehicle =>
+    val config = new Configuration[Seq[Vehicle]](p, vehiclesFile(p))
+    val vehicles = config.parse
+    vehicles.map { vehicle =>
       val file = vehicle.file(p)
-
-      if (Files.notExists(file))
-        createEmptyJson(file)
-
+      if (Files.notExists(file)) createEmptyJson(file)
       val uuids = new Configuration[UUIDBiMap](p, file)
       new VehicleTracker(uuids.parse, vehicle)
     }
   }
 
   def save(p: Plugin, t: VehicleTracker): Unit = {
-    val json = Json.toJson[UUIDBiMap](t.m)
+    val json = Json.toJson[UUIDBiMap](t.map)
     val f = t.vehicle.file(p)
     val pretty = Json.prettyPrint(json)
     Files.write(f, pretty.getBytes)
@@ -77,67 +73,108 @@ object VehicleTracker extends CustomReads {
 
 }
 
-case class VehicleTracker(m: UUIDBiMap, vehicle: Vehicle) extends CustomReads {
+// BiMap[player_uuid, Seq[vehicle_uuid]]
+case class VehicleTracker(map: UUIDBiMap, vehicle: Vehicle) extends CustomReads {
 
-  def add(pid: UUID, vid: UUID): Unit = m.put(pid, vid)
-  def remove(vid: UUID): Unit = m.inverse.remove(vid)
-  def containsVehicle(vid: UUID): Boolean = m.inverse.containsKey(vid)
-  def containsOwner(vid: UUID): Boolean = m.containsKey(vid)
-  def vehicles: Iterable[UUID] = m.inverse.keySet.asScala
-  def players: Iterable[UUID] = m.keySet.asScala
+  def getVehicles(pid: UUID): Option[Seq[UUID]] = Option(map.get(pid))
+  def getPlayer(vid: UUID): Option[UUID] = Option(map.inverse.get(vid))
+
+  def add(pid: UUID, vid: UUID): Unit =
+    map.compute(pid, new BiFunction[UUID, Seq[UUID], Seq[UUID]] {
+
+      override def apply(k: UUID, v: Seq[UUID]): Seq[UUID] =
+        if (v == null) Seq(vid) else v :+ vid
+
+      override def andThen[V](after: Function[_ >: Seq[UUID], _ <: V]) = ???
+    })
+
+  def getCount(pid: UUID): Int = map.getOrDefault(pid, Seq()).length
+  def canPlaceVehicle(pid: UUID): Boolean = getCount(pid) < vehicle.limit
+  def remove(vid: UUID): Unit = map.inverse.remove(vid)
+
+  // TODO: fix efficiency
+  def containsVehicle(vid: UUID): Boolean = vehicles.contains(vid)
+  def vehicles: java.util.Set[UUID] = map.inverse.keySet.flatten
+
+  def players: java.util.Set[UUID] = map.keySet
   def save(p: Plugin): Unit = {
     val f = vehicle.file(p)
-    val json = Json.toJson[UUIDBiMap](m)
+    val json = Json.toJson[UUIDBiMap](map)
     val pretty = Json.prettyPrint(json)
     Files.write(f, pretty.getBytes)
   }
 
 }
 
+class VehicleCleaner(server: Server, bukkitServer: org.bukkit.Server, trackers: Seq[VehicleTracker]) extends Schedulable {
+
+  override val period = 60 seconds
+
+  override def run(): Unit = {
+    for {
+      w <- bukkitServer.getWorlds
+      e <- w.getEntities
+      uuid = e.getUniqueId
+      t <- trackers
+      v = t.vehicle
+      if v.matches(e)
+      if !t.containsVehicle(uuid)
+    } yield clean(t, v, e)
+  }
+
+  def clean(tracker: VehicleTracker, vehicle: Vehicle, entity: Entity): Unit = {
+    val uuid = entity.getUniqueId
+    for {
+      pid <- tracker.getPlayer(uuid)
+      p <- server.getPlayer(pid)
+    } yield p.sendMessage(err"Your ${vehicle.name} has been either lost or destroyed, you may now place another")
+    entity.remove()
+  }
+
+}
+
 object VehicleListener {
 
-  def load(server: Server, vt: Seq[VehicleTracker]): VehicleListener = {
-    val map = vt.map{ tracker => (tracker.vehicle, tracker) }.toMap
+  def load(server: Server, trackers: Seq[VehicleTracker]): VehicleListener = {
+    val map = trackers.map(t => (t.vehicle, t)).toMap
     new VehicleListener(server, map, None)
   }
 
 }
 
-case class VehicleListener(server: Server, vMap: Map[Vehicle, VehicleTracker], var lastPlayer: Option[UUID]) extends Listener {
+case class VehicleListener(server: Server, trackers: Map[Vehicle, VehicleTracker], var lastPlayer: Option[UUID]) extends Listener {
 
-  def setLastPlayer(pid: UUID): Unit =
+  def setPlayer(pid: UUID): Unit =
     lastPlayer = Some(pid)
 
-  def find(bv: org.bukkit.entity.Vehicle): Option[Vehicle] =
-    vMap.keys.find(_.matches(bv))
+  def findVehicle(bv: org.bukkit.entity.Vehicle): Option[Vehicle] =
+    trackers.keys.find(_.matches(bv))
 
   def isVehicle(i: ItemStack): Boolean =
-    vMap.keys.exists(_.types.contains(i.getType))
+    trackers.keys.exists(_.types.contains(i.getType))
 
   @EventHandler
   def onVehicleCreate(ev: VehicleCreateEvent): Unit = {
-
     def checkVehiclePlace(p: Server.Player, t: VehicleTracker, v: Vehicle): Unit = {
-      if (t.containsOwner(p.id)) {
+      if (!t.canPlaceVehicle(p.id)) {
         ev.getVehicle.remove()
         p.sendMessage(err"Please remove your ${v.name} before placing another")
       } else {
         t.add(p.id, ev.getVehicle.getUniqueId)
       }
     }
-
     for {
       last <- lastPlayer
       player <- server.getPlayer(last)
-      vehicle <- find(ev.getVehicle)
-      tracker <- vMap.get(vehicle)
+      vehicle <- findVehicle(ev.getVehicle)
+      tracker <- trackers.get(vehicle)
     } yield checkVehiclePlace(player, tracker, vehicle)
   }
 
-
   @EventHandler
   def onVehicleDestroy(ev: VehicleDestroyEvent): Unit =
-    find(ev.getVehicle).flatMap(vMap.get)
+    findVehicle(ev.getVehicle)
+      .flatMap(trackers.get)
       .foreach(_.remove(ev.getVehicle.getUniqueId))
 
   @EventHandler
@@ -145,7 +182,7 @@ case class VehicleListener(server: Server, vMap: Map[Vehicle, VehicleTracker], v
     if (ev.getAction == RIGHT_CLICK_BLOCK) {
       Option(ev.getItem)
         .filter(isVehicle)
-        .foreach(i => setLastPlayer(ev.getPlayer.getUniqueId))
+        .foreach(i => setPlayer(ev.getPlayer.getUniqueId))
     }
   }
 

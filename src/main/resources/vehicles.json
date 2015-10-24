@@ -2,6 +2,7 @@
   {
     "name": "boat",
     "fileName": "boats.json",
+    "limit": 1,
     "entityTypes": [
       "Boat"
     ],
@@ -11,6 +12,7 @@
   }, {
     "name": "cart",
     "fileName": "carts.json",
+    "limit": 1,
     "entityTypes": [
       "MinecartRideable",
       "MinecartChest",

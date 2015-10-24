@@ -15,10 +15,11 @@ import org.bukkit.command.CommandSender
 import org.bukkit.event.Listener
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
-import reactivemongo.api.{DB, MongoDriver}
+import reactivemongo.api.{MongoConnection, DB, MongoDriver}
 import com.edawg878.common.Server._
 
 import scala.concurrent.{Await, Future}
+import scala.util.Try
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
@@ -29,7 +30,7 @@ object Modules {
     val logger = plugin.logger
     val driver = new MongoDriver
     val conn = driver.connection(List("localhost"))
-    val mongo: DB = conn.db("minecraft")
+    val mongo = conn.db("minecraft")
     val playerDb = new MongoPlayerRepository(mongo, logger)
     val plotDb = new MongoPlotRepository(mongo, logger)
     val databases = Seq[MongoRepository](playerDb, plotDb)
@@ -43,8 +44,11 @@ object Modules {
     import com.edawg878.bukkit.BukkitConversions._
 
     val configFile = plugin.dataFolder.resolve("vehicles.json")
-    val plotWorldConfig = new Configuration[Seq[PlotWorldConfig]](plugin, "worlds.json")
-    val plotWorldConfigs = { plotWorldConfig.saveDefault(); plotWorldConfig.parse }
+    val plotWorldConfig = {
+      val config = new Configuration[Seq[PlotWorldConfig]](plugin, "worlds.json")
+      config.saveDefault()
+      config.parse
+    }
     val plotWorlds = loadPlotWorlds
     val playerCache = new PlayerCache
 
@@ -57,16 +61,21 @@ object Modules {
       override def apply(s: String): Option[PlotWorld] = plotWorlds.get(s)
     }
 
-    def getPlotWorldConfig(s: String): Option[PlotWorldConfig] = plotWorldConfigs.find(_.name == s)
+    def getPlotWorldConfig(s: String): Option[PlotWorldConfig] = plotWorldConfig.find(_.name == s)
 
     def loadPlotWorlds: Map[String, PlotWorld] = {
-      val fMan = plotWorldConfigs.map(PlotWorld.load(_, plotDb))
+      val fMan = plotWorldConfig.map(PlotWorld.load(_, plotDb))
       val fManSeq = Future.sequence(fMan)
       val r = Await.result(fManSeq, 5 minutes)
       r.map{ case w => (w.config.name, w) }.toMap
     }
 
     def loadVehicleTrackers: Seq[VehicleTracker] = VehicleTracker.load(plugin)
+
+    def startTask(t: Schedulable): Task = {
+      if (t.async) server.scheduleAsync(t.period, t.delay, t.run())
+      else server.schedule(t.period, t.delay, t.run())
+    }
 
     val tierCommand = new TierCommand(playerDb)
     val perkCommand = new PerkCommand(playerDb)
@@ -80,15 +89,16 @@ object Modules {
 
     val plotListener = new PlotListener(bukkitPlotWorldResolver, plotDb, server, bukkitServer)
     val vehicleTrackers = loadVehicleTrackers
-    vehicleTrackers.foreach(t => logger.info(s"loaded ${t.vehicle.name}"))
     val vehicleListener = VehicleListener.load(server, vehicleTrackers)
     val blockListener = BlockListener.load(plugin)
     val itemListener = ItemListener.load(plugin)
 
+    val vehicleCleaner = new VehicleCleaner(server, bukkitServer, vehicleTrackers)
+
     val commands = Seq[Command[CommandSender]](tierCommand, perkCommand, creditCommand, groupCommand, playTimeCommand,
       seenCommand, whoIsCommand, plotCommand)
     val listeners = Seq[Listener](plotListener, vehicleListener, blockListener, itemListener)
-
+    val tasks = Seq[Schedulable](vehicleCleaner).map(startTask)
 
   }
 }

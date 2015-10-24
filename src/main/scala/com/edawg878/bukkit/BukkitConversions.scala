@@ -2,16 +2,21 @@ package com.edawg878.bukkit
 
 import java.io.InputStream
 import java.nio.file.Path
+import java.time.Period
 import java.util.UUID
 import java.util.logging.Logger
 
 import com.edawg878.bukkit.plot.Position
 import com.edawg878.common.Server._
+import org.bukkit.scheduler.BukkitTask
+import scala.concurrent.duration._
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
  */
 object BukkitConversions {
+
+  implicit def funcToRunnable(f: => Unit) = new Runnable { def run() = f }
 
   implicit class BukkitPlugin(plugin: org.bukkit.plugin.Plugin) {
 
@@ -49,18 +54,31 @@ object BukkitConversions {
       def getDisplayName: String = player.getDisplayName
     }
 
-  }
+}
 
   //implicit def bukkitPlayerToUniqueId(p: org.bukkit.entity.Player): UUID = p.getUniqueId
 
   implicit class BukkitServer(s: org.bukkit.Server) {
+
+    def toTask(t: BukkitTask): Task = new Task { def cancel() = t.cancel() }
 
     def toServer(p: org.bukkit.plugin.Plugin): Server = new Server {
       def getPlayer(name: String): Option[Player] = Option(s.getPlayer(name)).map(_.toPlayer)
 
       def getPlayer(id: UUID): Option[Player] = Option(s.getPlayer(id)).map(_.toPlayer)
 
-      def sync(f: => Unit): Unit = s.getScheduler.scheduleSyncDelayedTask(p, new Runnable { def run(): Unit = f })
+      def sync(f: => Unit, delay: Long): Unit = s.getScheduler.runTaskLater(p, f, delay)
+
+      def async(f: => Unit, delay: Long): Unit = s.getScheduler.runTaskLaterAsynchronously(p, f, delay)
+
+      def schedule(d: Duration, delay: Long, f: => Unit): Task =
+        toTask(s.getScheduler.runTaskTimer(p, f, delay, d.toTicks))
+
+      def scheduleAsync(d: Duration, delay: Long, f: => Unit) =
+        toTask(s.getScheduler.runTaskTimerAsynchronously(p, f, delay, d.toTicks))
+
+      def shutdown(): Unit = s.shutdown()
+
     }
 
   }

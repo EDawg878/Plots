@@ -8,7 +8,7 @@ import org.bukkit.event.player.PlayerInteractEvent
 import org.bukkit.inventory.ItemStack
 import org.bukkit.potion.{Potion, PotionEffectType}
 import play.api.libs.json.Json
-import scala.collection.JavaConverters._
+import scala.collection.JavaConversions._
 import com.edawg878.common.Color.Formatter
 
 /**
@@ -42,7 +42,7 @@ class ItemListener(c: ItemConfig) extends Listener {
   def isPotionBlocked(itm: ItemStack): Boolean = {
     if (itm.getType != Material.POTION || !isWaterPotion(itm)) false
     else Potion.fromDamage(getPotionEffectBits(itm))
-        .getEffects.asScala
+        .getEffects
         .map(_.getType.getName)
         .exists(c.bannedPotionEffectTypes.contains)
   }

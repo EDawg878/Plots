@@ -2,6 +2,7 @@ package com.edawg878.common
 
 import java.io.{InputStream, IOException}
 import java.nio.file.{Files, Path}
+import java.time.Period
 import java.util
 import java.util.Map.Entry
 import java.util.UUID
@@ -24,6 +25,7 @@ import play.api.libs.functional.syntax._
 
 import org.bukkit._
 
+import scala.concurrent.duration._
 import scala.collection.generic.CanBuildFrom
 import scala.language.{implicitConversions, higherKinds}
 import scala.util.Try
@@ -183,6 +185,28 @@ object Server {
 
   }
 
+  implicit class RichDuration(d: Duration) {
+
+    def toTicks: Long = d.toSeconds * 20
+
+  }
+
+  trait Schedulable extends Runnable {
+
+    def period: Duration
+
+    def delay: Long = 0L
+
+    def async: Boolean = false
+
+  }
+
+  trait Task {
+
+    def cancel(): Unit
+
+  }
+
   trait Server {
 
     def getPlayer(name: String): Option[Player]
@@ -193,7 +217,15 @@ object Server {
 
     def isOnline(id: UUID): Boolean = getPlayer(id).isDefined
 
-    def sync(f: => Unit): Unit
+    def sync(f: => Unit, delay: Long = 0L): Unit
+
+    def async(f: => Unit, delay: Long = 0L): Unit
+
+    def schedule(period: Duration, delay: Long = 0L, f: => Unit): Task
+
+    def scheduleAsync(period: Duration, delay: Long = 0L, f: => Unit): Task
+
+    def shutdown(): Unit
 
   }
 
