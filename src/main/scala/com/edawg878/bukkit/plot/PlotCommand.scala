@@ -1,28 +1,23 @@
-package com.edawg878.bukkit.commands
+package com.edawg878.bukkit.plot
 
-import java.time.Duration
-import java.util
+import java.time.{Instant, Duration}
 import java.util.UUID
 
 import com.edawg878.bukkit.plot.Plot._
 import com.edawg878.bukkit.plot.PlotClearConversation.PlotClearConversation
-import com.edawg878.bukkit.plot._
 import com.edawg878.common.BukkitCommandHandler.{BukkitCommand, BukkitOptionParser}
-import com.edawg878.common.Readers.Bukkit.BukkitReaders
-import com.edawg878.common.Server.Server
-import com.edawg878.common.{PlotRepository, PlayerRepository, CommandMeta}
-import org.bukkit.{Bukkit, World}
-import org.bukkit.ChatColor._
-import org.bukkit.command.CommandSender
-import org.bukkit.conversations._
-import org.bukkit.entity.Player
 import com.edawg878.common.Color.Formatter
 import com.edawg878.common.Conversions._
-import org.bukkit.plugin.Plugin
-import scopt.Read
+import com.edawg878.common.Readers.Bukkit.BukkitReaders
+import com.edawg878.common.Server.Server
+import com.edawg878.common.{CommandMeta, PlayerRepository, PlotRepository}
+import com.edawg878.core.Core
+import org.bukkit.ChatColor._
+import org.bukkit.command.CommandSender
+import org.bukkit.entity.Player
+
 import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext.Implicits.global
-
 import scala.concurrent.Future
 import scala.util.Try
 
@@ -57,7 +52,8 @@ object PlotCommand {
     def pid: UUID = player.getUniqueId
   }
 
-  class PlotCommand(val resolver: PlotWorldResolver, playerDb: PlayerRepository, plotDb: PlotRepository, val server: Server, val bukkitServer: org.bukkit.Server, plotClearConversation: PlotClearConversation) extends BukkitCommand[Config]
+  class PlotCommand(val resolver: PlotWorldResolver, playerDb: PlayerRepository, plotDb: PlotRepository, val server: Server, val bukkitServer: org.bukkit.Server, plotClearConversation: PlotClearConversation,
+                     edawg878: Option[Core]) extends BukkitCommand[Config]
     with PlotHelper with BukkitReaders {
 
     def meta: CommandMeta = CommandMeta(cmd = "plot", perm = None, aliases = "p", "plotme")
@@ -154,9 +150,18 @@ object PlotCommand {
         .map(_.map(d => (d.id -> d.name)).toMap)
         .map(_.withDefault(_.toString))
 
-    def canClaimPlot(p: Player, pm: PlotWorld): Future[Boolean] =
+    def getPlotLimit(p: Player): Int =
+      edawg878.map(_.getPlayerManager.getData(p).getPlotLimit).getOrElse(1)
+
+    def canClaimPlot(p: Player, pm: PlotWorld): Future[Boolean] = {
       if (p.hasPermission("plot.admin")) Future(true)
-      else playerDb.search(p.getUniqueId).map(_.exists(_.plotLimit > pm.getHomes(p.getUniqueId).length))
+      else {
+        val homes = pm.getHomes(p.getUniqueId).length
+        p.sendMessage(info"n homes = $homes plot limit = ${getPlotLimit(p)}")
+        Future(getPlotLimit(p) > homes)
+      }
+      //else playerDb.search(p.getUniqueId).map(_.exists(_.plotLimit > pm.getHomes(p.getUniqueId).length))
+    }
 
     def parseUniqueId(p: Player, s: String)(fn: UUID => Unit): Unit = {
       val f = if (s.length > 16) Future(Try(UUID.fromString(s)).toOption)
@@ -170,6 +175,10 @@ object PlotCommand {
           asPlayer(sender)(p =>
             inPlotWorld(p){ w =>
               val id = w.getPlotId(p.getLocation)
+              val corners = id.insideCorners(w.config)
+              val outsideCorners = id.outsideCorners(w.config)
+              p.sendMessage(info"in = $corners")
+              p.sendMessage(info"out = $outsideCorners")
               w.getPlot(id).fold(p.sendMessage(info"Vacant plot ($id)")) { plot =>
                 names(plot.ids).foreach { nm =>
                   p.sendMessage(info"Plot ID: $id")
@@ -194,7 +203,11 @@ object PlotCommand {
               if (plot.isEmpty || expired) {
                 canClaimPlot(p, w).map { canClaim =>
                   if (canClaim) {
-                    if (expired) server.sync { w.clear(p.getWorld, id) }
+                    if (expired) {
+                      server.sync(new Runnable() {
+                        def run() = w.clear(p.getWorld, id)
+                      })
+                    }
                     val plot = w.claim(p, id)
                     plotDb.save(plot)
                     p.sendMessage(info"Claimed plot ($id)")
@@ -222,7 +235,9 @@ object PlotCommand {
                 .fold(w.getHome(pid, c.home))(w.getHome(pid, _))
                 .fold(p.sendMessage(err"Home '${c.home}' not found")){ plot =>
                   p.sendMessage(info"Teleporting to plot (${plot.id})")
-                  server.sync(p.teleport(w.getHomeLocation(p.getWorld, plot.id)))
+                  server.sync(new Runnable() {
+                    def run() = p.teleport(w.getHomeLocation(p.getWorld, plot.id))
+                  })
                 }
               c.sub collect {
                 case Home => home(p.getUniqueId)
@@ -276,7 +291,7 @@ object PlotCommand {
                   w.update(banned)
                   plotDb.save(banned)
                   val l = c.player.getLocation
-                  if (plot.id.isInside(w.config, l)) c.player.teleport(plot.id.border(w.config).knockback(l))
+                  if (plot.id.isInside(w.config, l)) c.player.teleport(c.player.getWorld.getSpawnLocation)
                   p.sendMessage(info"Banned ${c.player.getName} from the plot")
               }
             }
@@ -372,26 +387,39 @@ object PlotCommand {
           asPlayer(sender) { p =>
             inPlotWorld(p) { w =>
               canClaimPlot(p, w) map { canClaim =>
-                @tailrec
-                def auto(n: Int, x: Int, z: Int): (PlotId, Boolean) = {
-                  val id = PlotId.of(w.config, x, z)
-                  val plot = w.getPlot(id)
-                  val expired = plot.fold(false)(_.isExpired)
-                  if (plot.isEmpty || expired) (id, expired)
-                  else {
-                    if (z < n) auto(n, x, z + 1)
-                    else if (x < n) auto(n, x + 1, -n)
-                    else auto(n + 1, -(n + 1), -(n + 1))
+                if (canClaim) {
+                  @tailrec
+                  def auto(n: Int, x: Int, z: Int): (PlotId, Boolean) = {
+                    val id = new PlotId(x, z, w.config.name)
+                    val plot = w.getPlot(id)
+                    val expired = plot.fold(false)(_.isExpired)
+                    if (plot.isEmpty || expired) (id, expired)
+                    else {
+                      if (z < n) auto(n, x, z + 1)
+                      else if (x < n) auto(n, x + 1, -n)
+                      else auto(n + 1, -(n + 1), -(n + 1))
+                    }
                   }
+                  auto(0, 0, 0) match {
+                    case (id, expired) =>
+                      if (expired) {
+                        server.sync(new Runnable() {
+                          override def run() = w.clear(p.getWorld, id)
+                        })
+                      }
+                      val updated = w.claim(p, id)
+                      plotDb.save(updated)
+                      server.sync(
+                        new Runnable {
+                          override def run(): Unit = {
+                            p.teleport(w.getHomeLocation(p.getWorld, id))
+                            p.sendMessage(info"Claimed plot ($id)")
+                          }
+                        })
+                  }
+                } else {
+                  p.sendMessage(err"You cannot claim anymore plots")
                 }
-                auto(0, 0, 0) match {
-                  case (id, expired) =>
-                    if (expired) server.sync { w.clear(p.getWorld, id) }
-                    val updated = w.claim(p, id)
-                    plotDb.save(updated)
-                    p.teleport(w.getHomeLocation(p.getWorld, id))
-                    p.sendMessage(info"Claimed plot ($id)")
-                }// getOrElse(p.sendMessage(err"The maximum number of plots has been reached"))
               }
             }
           }
@@ -401,7 +429,13 @@ object PlotCommand {
               if (plot.protect) {
                 p.sendMessage(err"You cannot clear a protected plot")
               } else if (p.hasPermission("plot.admin") || plot.canClear(Duration.ofHours(1))) {
-                plotClearConversation.begin(p, plot.id)
+                //plotClearConversation.begin(p, plot.id)
+                val id = plot.id
+                w.clear(p.getWorld, id)
+                val updated = plot.copy(lastCleared = Some(Instant.now))
+                w.update(updated)
+                plotDb.save(updated)
+                p.sendMessage(info"Plot cleared")
               } else {
                 p.sendMessage(err"You can only clear your plot once per hour")
               }

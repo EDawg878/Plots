@@ -3,11 +3,11 @@ package com.edawg878.common
 import java.time.{Duration, Instant}
 import java.util.UUID
 
+import com.edawg878.common.Color.Formatter
+import com.edawg878.common.DateUnit.Implicits.standardUnits
 import com.edawg878.common.DateUnit.TimeZone
 import com.edawg878.common.Group.Default
 import com.edawg878.common.Server.Player
-import com.edawg878.common.Color.Formatter
-import com.edawg878.common.DateUnit.Implicits.standardUnits
 
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable

@@ -1,33 +1,18 @@
 package com.edawg878.common
 
-import java.io.{InputStream, IOException}
+import java.io.{IOException, InputStream}
 import java.nio.file.{Files, Path}
-import java.time.Period
-import java.util
-import java.util.Map.Entry
 import java.util.UUID
 import java.util.logging.Logger
-import com.edawg878.bukkit.listener.VehicleTracker.UUIDBiMap
+
 import com.edawg878.bukkit.plot._
-import com.google.common.collect.HashBiMap
+import org.bukkit._
 import org.bukkit.block.Biome
 import org.bukkit.entity.EntityType
-import org.bukkit.potion.PotionEffectType
-import play.api.data.validation.ValidationError
-import play.api.libs.json._
-import reactivemongo.bson._
-
-import scala.collection.JavaConverters._
-import scala.collection.JavaConversions._
-
-import play.api.libs.json.Reads
-import play.api.libs.functional.syntax._
-
-import org.bukkit._
+import play.api.libs.json.{Reads, _}
 
 import scala.concurrent.duration._
-import scala.collection.generic.CanBuildFrom
-import scala.language.{implicitConversions, higherKinds}
+import scala.language.{higherKinds, implicitConversions}
 import scala.util.Try
 
 /**
@@ -101,24 +86,8 @@ object Server {
     implicit val plotWorldConfigFormat =
       Json.format[PlotWorldConfig]
 
-    implicit val uuidBiMapReads = new Format[UUIDBiMap] {
-      override def reads(json: JsValue) = json match {
-        case JsObject(m) =>
-          JsSuccess(HashBiMap.create(m.flatMap {
-            case (k, v) =>
-              v match {
-                case JsString(s) => Some(UUID.fromString(k) -> UUID.fromString(s))
-                case _ => None
-              }
-          }.toMap.asJava))
-        case _ => JsError("JsObject expected")
-      }
-
-      override def writes(m: UUIDBiMap) = {
-        JsObject(m.asScala.toSeq.map { case (k, v) => (k.toString, JsString(v.toString)) })
-      }
-
-    }
+    implicit val worldEditConfigFormat =
+      Json.format[WorldEditConfig]
 
     implicit val entityTypeFormat: Reads[EntityType] = __.read[String].map(EntityType.fromName)
 
@@ -217,7 +186,7 @@ object Server {
 
     def isOnline(id: UUID): Boolean = getPlayer(id).isDefined
 
-    def sync(f: => Unit, delay: Long = 0L): Unit
+    def sync(f: Runnable, delay: Long = 0L): Unit
 
     def async(f: => Unit, delay: Long = 0L): Unit
 

@@ -1,23 +1,20 @@
 package com.edawg878.common
 
-import com.edawg878.bukkit.commands.BasicCommand.{WhoIsCommand, SeenCommand, PlayTimeCommand}
-import com.edawg878.bukkit.commands.CreditCommand.CreditCommand
-import com.edawg878.bukkit.commands.GroupCommand.GroupCommand
-import com.edawg878.bukkit.commands.PerkCommand.PerkCommand
-import com.edawg878.bukkit.commands.PlotCommand.PlotCommand
-import com.edawg878.bukkit.commands.TierCommand.TierCommand
-import com.edawg878.bukkit.listener._
-import com.edawg878.bukkit.listener.VehicleListener._
+import java.util.UUID
+
 import com.edawg878.bukkit.plot.PlotClearConversation.PlotClearConversation
+import com.edawg878.bukkit.plot.PlotCommand.PlotCommand
 import com.edawg878.bukkit.plot._
-import org.bukkit.block.Biome
+import com.edawg878.common.Server._
+import com.edawg878.core.Core
+import com.sk89q.worldedit.bukkit.WorldEditPlugin
 import org.bukkit.command.CommandSender
 import org.bukkit.event.Listener
-import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext.Implicits.global
-import reactivemongo.api.{MongoConnection, DB, MongoDriver}
-import com.edawg878.common.Server._
+import reactivemongo.api.MongoDriver
 
+import scala.collection.JavaConversions._
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.util.Try
 
@@ -49,13 +46,21 @@ object Modules {
       config.saveDefault()
       config.parse
     }
+    val worldEditConfig = {
+      val config = new Configuration[WorldEditConfig](plugin, "worldedit.json")
+      config.saveDefault()
+      config.parse
+    }
     val plotWorlds = loadPlotWorlds
-    val playerCache = new PlayerCache
 
     def plugin: Plugin = bukkitPlugin.toPlugin
     def server: Server = bukkitServer.toServer(bukkitPlugin)
     def bukkitPlugin: org.bukkit.plugin.Plugin
     def bukkitServer: org.bukkit.Server = bukkitPlugin.getServer
+
+    val pluginManager: org.bukkit.plugin.PluginManager = bukkitServer.getPluginManager
+    var edawg878: Option[Core] = None
+    var worldedit: Option[WorldEditPlugin] = None
 
     val bukkitPlotWorldResolver = new PlotWorldResolver {
       override def apply(s: String): Option[PlotWorld] = plotWorlds.get(s)
@@ -70,35 +75,21 @@ object Modules {
       r.map{ case w => (w.config.name, w) }.toMap
     }
 
-    def loadVehicleTrackers: Seq[VehicleTracker] = VehicleTracker.load(plugin)
+    def worlds: Seq[UUID] = bukkitServer.getWorlds.map(_.getUID)
 
     def startTask(t: Schedulable): Task = {
       if (t.async) server.scheduleAsync(t.period, t.delay, t.run())
       else server.schedule(t.period, t.delay, t.run())
     }
 
-    val tierCommand = new TierCommand(playerDb)
-    val perkCommand = new PerkCommand(playerDb)
-    val creditCommand = new CreditCommand(playerDb)
-    val groupCommand = new GroupCommand(playerDb)
-    val playTimeCommand = new PlayTimeCommand(playerDb, server)
-    val seenCommand = new SeenCommand(playerDb, server)
-    val whoIsCommand = new WhoIsCommand(playerDb)
     val plotClearConversation = new PlotClearConversation(bukkitPlotWorldResolver, bukkitPlugin, plotDb, bukkitServer)
-    val plotCommand = new PlotCommand(bukkitPlotWorldResolver, playerDb, plotDb, server, bukkitServer, plotClearConversation)
+    val plotCommand = new PlotCommand(bukkitPlotWorldResolver, playerDb, plotDb, server, bukkitServer, plotClearConversation, edawg878)
 
     val plotListener = new PlotListener(bukkitPlotWorldResolver, plotDb, server, bukkitServer)
-    val vehicleTrackers = loadVehicleTrackers
-    val vehicleListener = VehicleListener.load(server, vehicleTrackers)
-    val blockListener = BlockListener.load(plugin)
-    val itemListener = ItemListener.load(plugin)
+    var worldEditListener: Option[WorldEditListener] = None
 
-    val vehicleCleaner = new VehicleCleaner(server, bukkitServer, vehicleTrackers)
-
-    val commands = Seq[Command[CommandSender]](tierCommand, perkCommand, creditCommand, groupCommand, playTimeCommand,
-      seenCommand, whoIsCommand, plotCommand)
-    val listeners = Seq[Listener](plotListener, vehicleListener, blockListener, itemListener)
-    val tasks = Seq[Schedulable](vehicleCleaner).map(startTask)
+    val commands = Seq[Command[CommandSender]](plotCommand)
+    val listeners = Seq[Listener](plotListener)
 
   }
 }

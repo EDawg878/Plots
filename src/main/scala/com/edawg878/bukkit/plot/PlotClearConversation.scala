@@ -3,13 +3,14 @@ package com.edawg878.bukkit.plot
 import java.time.Instant
 import java.util.UUID
 
+import com.edawg878.common.Color.Formatter
 import com.edawg878.common.PlotRepository
 import org.bukkit.ChatColor._
-import org.bukkit.{Server, World}
+import org.bukkit.Server
 import org.bukkit.conversations._
 import org.bukkit.entity.Player
 import org.bukkit.plugin.Plugin
-import com.edawg878.common.Color.Formatter
+
 import scala.collection.mutable
 
 /**
@@ -32,14 +33,14 @@ object PlotClearConversation {
         override def conversationAbandoned(ev: ConversationAbandonedEvent): Unit = {
           val ctx = ev.getContext
           val p = ctx.getForWhom.asInstanceOf[Player]
-          pending.remove(p.getUniqueId) map {
+          pending.remove(p.getUniqueId) foreach {
             case (wid, id) =>
               if (getAnswer(ctx).getOrElse(false)) {
                 p.sendMessage(info"The plot genie is now clearing your plot")
-                Option(server.getWorld(wid)) map { bw =>
-                  resolver(bw) map { w =>
+                Option(server.getWorld(wid)) foreach { bw =>
+                  resolver(bw) foreach { w =>
                     w.clear(bw, id)
-                    w.getPlot(id) map { plot =>
+                    w.getPlot(id) foreach { plot =>
                       val updated = plot.copy(lastCleared = Some(Instant.now))
                       w.update(updated)
                       plotDb.save(updated)

@@ -1,27 +1,26 @@
-package com.edawg878.bukkit.listener
+package com.edawg878.bukkit.plot
 
 import com.edawg878.bukkit.plot.Plot._
-import com.edawg878.bukkit.plot._
+import com.edawg878.common.Color.Formatter
 import com.edawg878.common.PlotRepository
 import com.edawg878.common.Server.Server
+import org.bukkit.Difficulty._
+import org.bukkit._
 import org.bukkit.block.Block
-import org.bukkit.event.entity.{EntityDamageByEntityEvent, EntityExplodeEvent, EntityChangeBlockEvent}
+import org.bukkit.entity.EntityType._
+import org.bukkit.entity._
+import org.bukkit.event.EventPriority._
+import org.bukkit.event._
+import org.bukkit.event.block.Action._
+import org.bukkit.event.block._
+import org.bukkit.event.entity.{EntityChangeBlockEvent, EntityDamageByEntityEvent, EntityExplodeEvent}
 import org.bukkit.event.hanging.{HangingBreakByEntityEvent, HangingPlaceEvent}
 import org.bukkit.event.player._
 import org.bukkit.event.vehicle.VehicleDestroyEvent
-import org.bukkit.event.world.{WorldLoadEvent, StructureGrowEvent}
-import org.bukkit._
-import org.bukkit.entity._
-import org.bukkit.event.block._
-import org.bukkit.entity.EntityType._
-import com.edawg878.common.Color.Formatter
-import org.bukkit.event._
-import org.bukkit.event.EventPriority._
-import org.bukkit.event.block.Action._
-import org.bukkit.Difficulty._
-import scala.collection.JavaConverters._
+import org.bukkit.event.world.{StructureGrowEvent, WorldLoadEvent}
+
 import scala.collection.JavaConversions._
-import com.edawg878.bukkit.plot.PlotHelper._
+import scala.collection.JavaConverters._
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
@@ -245,7 +244,7 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
     }
   }
 
-  @EventHandler(priority = LOWEST, ignoreCancelled = true)
+  //@EventHandler(priority = LOWEST, ignoreCancelled = true)
   def onPlayerMove(ev: PlayerMoveEvent): Unit = {
     if (ev.getFrom.getBlockX != ev.getTo.getBlockX
       || ev.getFrom.getBlockZ != ev.getTo.getBlockZ) {
@@ -272,21 +271,21 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
     }
   }
 
-  @EventHandler(priority = LOWEST, ignoreCancelled = true)
+  //@EventHandler(priority = LOWEST, ignoreCancelled = true)
   def onTeleport(ev: PlayerTeleportEvent): Unit = {
-    resolver(ev.getTo.getWorld) foreach { pm =>
+    resolver(ev.getTo.getWorld) foreach { w =>
       Option(ev.getPlayer) foreach { p =>
-        val id = pm.getPlotId(ev.getTo)
-        pm.getPlot(id) foreach { plot =>
-          if (!plot.status(p).has(NotBanned)) {
+        val id = w.getPlotId(ev.getTo)
+        w.getPlot(id) foreach { plot =>
             if (plot.isBanned(p.getUniqueId)) {
               ev.setCancelled(true)
               p.sendMessage(err"You cannot teleport to a plot that you are banned from")
-            } else if (plot.closed && !plot.isAdded(p.getUniqueId)) {
+            } else if (plot.closed && plot.status(p) < HelperOffline) {
               ev.setCancelled(true)
               p.sendMessage(err"You cannot teleport to a plot that is closed to visitors")
+            } else if (w.border.isPast(ev.getTo)) {
+              p.sendMessage(err"You cannot teleport past the world border")
             }
-          }
         }
       }
     }

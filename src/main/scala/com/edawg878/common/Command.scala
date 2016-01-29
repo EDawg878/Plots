@@ -1,14 +1,13 @@
 package com.edawg878.common
 
 import com.edawg878.common.Readers.PlayerDataReader
-import net.md_5.bungee.api.chat.ComponentBuilder
 import org.bukkit.entity.Player
 import scopt.ConsoleHandler.ConsoleHandler
 import scopt.CustomOptionParser
 
-import scala.concurrent.Future
-import scala.util.{Try, Failure, Success}
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
+import scala.util.{Failure, Success}
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>

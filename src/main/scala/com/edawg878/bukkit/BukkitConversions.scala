@@ -2,13 +2,13 @@ package com.edawg878.bukkit
 
 import java.io.InputStream
 import java.nio.file.Path
-import java.time.Period
 import java.util.UUID
 import java.util.logging.Logger
 
 import com.edawg878.bukkit.plot.Position
 import com.edawg878.common.Server._
 import org.bukkit.scheduler.BukkitTask
+
 import scala.concurrent.duration._
 
 /**
@@ -67,7 +67,7 @@ object BukkitConversions {
 
       def getPlayer(id: UUID): Option[Player] = Option(s.getPlayer(id)).map(_.toPlayer)
 
-      def sync(f: => Unit, delay: Long): Unit = s.getScheduler.runTaskLater(p, f, delay)
+      def sync(f: Runnable, delay: Long): Unit = s.getScheduler.runTaskLater(p, f, delay)
 
       def async(f: => Unit, delay: Long): Unit = s.getScheduler.runTaskLaterAsynchronously(p, f, delay)
 

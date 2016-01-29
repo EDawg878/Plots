@@ -1,0 +1,30 @@
+{
+  "maxBlockTypes": 2,
+  "bannedCommands": [
+    "gmask",
+    "up"
+  ],
+  "selectionCommands": [
+    "chunk",
+    "pos1",
+    "pos2",
+    "wand",
+    "hpos1",
+    "hpos2",
+    "contract",
+    "outset",
+    "expand",
+    "shift",
+    "inset",
+    "sel",
+    "desel"
+  ],
+  "limits": {
+    "forestgen": 10,
+    "green": 10,
+    "pumpkins": 10,
+    "snow": 10,
+    "thaw": 10,
+    "replacenear": 256
+  }
+}

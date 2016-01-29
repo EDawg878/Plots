@@ -2,31 +2,26 @@ package com.edawg878.bukkit.plot
 
 import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAmount
-import java.time.{Duration, Instant, LocalDate}
-import java.util.concurrent.ConcurrentHashMap
+import java.time.{Instant, LocalDate}
 import java.util.{Random, UUID}
 
+import com.edawg878.bukkit.BukkitConversions._
 import com.edawg878.bukkit.plot.Plot._
+import com.edawg878.common.Color.Formatter
 import com.edawg878.common.PlotRepository
 import com.edawg878.common.Server.Server
 import org.bukkit.Material._
+import org.bukkit._
 import org.bukkit.block.Biome
 import org.bukkit.block.Biome._
-import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import org.bukkit.generator.ChunkGenerator
 import org.bukkit.generator.ChunkGenerator.BiomeGrid
-import org.bukkit._
 
 import scala.collection.concurrent.TrieMap
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration._
-import scala.concurrent.{Await, Future}
+import scala.concurrent.Future
 import scala.util.Try
-import scala.collection.mutable
-import com.edawg878.bukkit.BukkitConversions._
-import com.edawg878.common.Color.Formatter
-import com.edawg878.bukkit.plot.PlotHelper._
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
@@ -54,26 +49,33 @@ case class PlotWorldConfig(name: String,
   val WorldExp = Math.getExponent(plotSize)
   val MaxY = math.max(pathHeight, math.max(borderHeight, topHeight))
 
-  private def isBorder(x: Int, z: Int, border: Int => Boolean): Boolean = {
-    val px = x & (plotSize - 1)
-    val pz = z & (plotSize - 1)
-    border(px) || border(pz)
+  def outsideRegion(id: PlotId): Region = {
+    val minX = id.x << WorldExp
+    val minZ = id.z << WorldExp
+    val maxX = minX + plotSize
+    val maxZ = minZ + plotSize
+    Region(minX, maxX, minZ, maxZ)
   }
 
-  private def isTouchingSide(a: Int, b: Int): Boolean =
-    a == b || a == plotSize - b + 1
+  def insideCorners(id: PlotId): Corners = {
+    val minX = (id.x << WorldExp)
+    val minZ = id.z << WorldExp
+    val maxX = minX + plotSize
+    val maxZ = minZ + plotSize
+    Region(minX, maxX, minZ, maxZ)
+  }
 
-  private def isBorder(x: Int, z: Int, start: Int, end: Int): Boolean =
-    isBorder(x, z, a => (start until end).exists(isTouchingSide(a, _)))
 
-  private def isBorder(x: Int, z: Int, dist: Int): Boolean =
-    isBorder(x, z, isTouchingSide(_, dist))
+  def isBorder(x: Int, z: Int): Boolean = {
+    val id = PlotId.of(this, x, z)
+    val outside = outsideCorners(id)
+    val inside = insideCorners(id)
 
-  def isBorder(x: Int, z: Int): Boolean =
-    isBorder(x, z, dist = pathWidth)
+  }
 
-  def isPath(x: Int, z: Int): Boolean =
-    isBorder(x, z, start = 0, end = pathWidth)
+  def isPath(x: Int, z: Int): Boolean = {
+
+  }
 
   def isBorder(loc: Location): Boolean = isBorder(loc.getBlockX, loc.getBlockZ)
 
@@ -83,7 +85,12 @@ case class PlotWorldConfig(name: String,
 
 }
 
-case class Position(x: Int, y: Int, z: Int)
+case class Position(x: Int, y: Int, z: Int) {
+
+  def add(x: Int, y: Int, z: Int): Position =
+    copy(x = this.x + x, y = this.y + y, z = this.z + z)
+
+}
 
 case class Corners(bottom: Position, top: Position)
 
@@ -108,14 +115,6 @@ case class PlotId(x: Int, z: Int, world: String) {
     Border(buffer = 0, knockback = -5,
       minX = blockX, maxX = blockX + c.plotSize,
       minZ = blockZ, maxZ = blockZ + c.plotSize)
-  }
-
-  def corners(c: PlotWorldConfig): Corners = {
-    val blockX = x << c.WorldExp
-    val blockZ = z << c.WorldExp
-    val bottom = Position(blockX, 0, blockZ)
-    val top = Position(blockX + c.plotSize - 1, c.maxHeight, blockZ + c.plotSize - 1)
-    Corners(bottom, top)
   }
 
   def region(c: PlotWorldConfig): Region = {
@@ -143,7 +142,7 @@ case class PlotId(x: Int, z: Int, world: String) {
     c.name == l.getWorld.getName && isInside(c, l.toPosition)
 
   def isInside(c: PlotWorldConfig, p: Position): Boolean = {
-    val cs = corners(c)
+    val cs = outsideCorners(c)
     p.x >= cs.bottom.x &&
       p.x <= cs.top.x &&
       p.y >= cs.bottom.y &&
@@ -165,6 +164,10 @@ object Plot {
   sealed trait Status {
     def rank: Int
     def has(that: Status): Boolean = this.rank >= that.rank
+    def >(that: Status): Boolean = this.rank > that.rank
+    def >=(that: Status): Boolean = this.rank >= that.rank
+    def <(that: Status): Boolean = this.rank < that.rank
+    def <=(that: Status): Boolean = this.rank <= that.rank
   }
 
   case object Admin extends Status { val rank = 100 }
@@ -274,12 +277,12 @@ case class Border(buffer: Int,
                   maxX: Int = 0,
                   minZ: Int = 0,
                   maxZ: Int = 0) {
-  
+
   def recalculate(r: Region): Border =
-    copy(minX = minX.min(r.minX) - buffer,
-      maxX = maxX.max(r.maxX) + buffer,
-      minZ = minZ.min(r.minZ) - buffer,
-      maxZ = maxZ.max(r.maxZ) + buffer)
+    copy(minX = minX.min(r.minX),
+      maxX = maxX.max(r.maxX),
+      minZ = minZ.min(r.minZ),
+      maxZ = maxZ.max(r.maxZ))
 
   def isPast(loc: Location): Boolean = {
     val locX = loc.getBlockX
@@ -326,7 +329,8 @@ object PlotWorld {
         .map(plots => PlotWorld(c, plots, findBorder(c, plots.keys)))
 
   def findBorder(c: PlotWorldConfig, ids: Iterable[PlotId]): Border = {
-    val regions = ids.map(_.chunkRegion(c))
+    Bukkit.getLogger.info("FOUND " + ids.size + " PLOT IDS TO CHECK");
+    val regions = ids.map(_.region(c))
     val buffer = c.plotSize
     val knockback = c.pathWidth - 1
     val start = Border(buffer, knockback, -buffer, buffer, -buffer, buffer)
@@ -351,13 +355,15 @@ case class PlotWorld(config: PlotWorldConfig, plots: TrieMap[PlotId, Plot], var 
   def claim(p: Player, id: PlotId): Plot = {
     val plot = Plot(p.getUniqueId, id)
     plots.put(id, plot)
+    val region = plot.id.region(config)
+    border = border.recalculate(region)
     plot
   }
 
   def unclaim(id: PlotId): Option[Plot] = plots.remove(id)
 
   def getHomeLocation(bw: World, id: PlotId): Location = {
-    val c = id.corners(config).bottom
+    val c = id.outsideCorners(config).bottom
     val x = c.x + config.pathWidth
     val z = c.z + config.pathWidth
     val y = bw.getHighestBlockYAt(x, z)
@@ -386,20 +392,6 @@ case class PlotWorld(config: PlotWorldConfig, plots: TrieMap[PlotId, Plot], var 
       }
     }
   }
-
-}
-
-object PlotHelper {
-
-  /*
-  sealed trait Result
-  object Result { def apply(b: Boolean) = if (b) Right() else Left() }
-  case class Right() extends Result
-  case class Left(s: Option[String]) extends Result
-  object Left {
-    def apply() = Left(None)
-    def apply(s: String) = Left(Some(s))
-  }*/
 
 }
 

@@ -22,11 +22,14 @@ resolvers += "sk89q-repo" at "http://maven.sk89q.com/repo/"
 
 resolvers += Resolver.sonatypeRepo("public")
 
-unmanagedJars in Compile += file("lib_unmanaged/scopt_2.11-3.3.0.jar")
+unmanagedJars in Compile ++= Seq(
+  file("lib_unmanaged/scopt_2.11-3.3.0.jar"),
+  file("lib_unmanaged/EDawg878-Core-1.0.jar")
+)
 
 libraryDependencies ++= Seq(
   "org.spigotmc" % "spigot-api" % "1.8-R0.1-SNAPSHOT",
-  "net.md-5" % "bungeecord-api" % "1.8-SNAPSHOT",
+  "com.sk89q" % "worldedit" % "6.0.0-SNAPSHOT",
   "org.scalatest" % "scalatest_2.11" % "2.2.1" % "test",
   "org.reactivemongo" %% "play2-reactivemongo" % "0.10.5.0.akka23",
   "com.typesafe.play" %% "play-json" % "2.3.4"

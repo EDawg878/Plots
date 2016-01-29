@@ -1,15 +1,15 @@
 package com.edawg878.common
 
-import java.time.{Duration, _}
 import java.time.temporal.ChronoUnit
+import java.time.{Duration, _}
 import java.util.UUID
 import java.util.logging.{Level, Logger}
 
 import com.edawg878.bukkit.plot.{Plot, PlotId, PlotWorldConfig}
 import com.edawg878.common.Server.Player
+import reactivemongo.api.DB
 import reactivemongo.api.collections.default.BSONCollection
 import reactivemongo.api.indexes.{Index, IndexType}
-import reactivemongo.api.{DB, DefaultDB, MongoConnection, MongoDriver}
 import reactivemongo.bson.Subtype.UuidSubtype
 import reactivemongo.bson._
 

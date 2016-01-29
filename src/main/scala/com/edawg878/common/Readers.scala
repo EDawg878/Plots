@@ -56,18 +56,4 @@ object Readers {
 
   }
 
-  object Bungee {
-
-    import net.md_5.bungee.api.ProxyServer
-    import net.md_5.bungee.api.connection.ProxiedPlayer
-
-    trait BungeeReaders extends PlayerReader[ProxiedPlayer] {
-
-      override def getPlayer(name: String): ProxiedPlayer = server.getPlayer(name)
-
-      def server: ProxyServer
-
-    }
-  }
-
 }

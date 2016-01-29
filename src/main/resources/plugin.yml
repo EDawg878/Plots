@@ -2,13 +2,7 @@ name: ScalaTest
 main: com.edawg878.bukkit.BukkitMain
 version: 1
 load: startup
+softdepend: [EDawg878-Core, WorldEdit]
 commands:
-  tier: {}
-  perk: {}
-  credit: {}
-  group: {}
-  playTime: {}
-  seen: {}
-  whoIs: {}
   plot:
     aliases: [p, plotme]

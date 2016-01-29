@@ -1,21 +1,24 @@
 package com.edawg878.bukkit
 
-import com.edawg878.bukkit.listener.VehicleTracker
-import com.edawg878.bukkit.plot.PlotGenerator
-import com.edawg878.common.Server.CustomReads
-import com.edawg878.common.{PlayTime, PlayerNotFound, PlayerData, Command}
+import java.util
+
+import com.edawg878.bukkit.plot.{WorldEditListener, PlotGenerator}
 import com.edawg878.common.Modules.BukkitModule
+import com.edawg878.common.{Command, PlayerData}
+import com.edawg878.core.Core
+import com.sk89q.worldedit.WorldEdit
+import com.sk89q.worldedit.bukkit.WorldEditPlugin
 import org.bukkit.command.{CommandExecutor, CommandSender}
 import org.bukkit.event.player.{PlayerJoinEvent, PlayerQuitEvent}
-import org.bukkit.event.{EventHandler, Listener}
+import org.bukkit.event.server.{PluginDisableEvent, PluginEnableEvent}
+import org.bukkit.event.{HandlerList, EventHandler, Listener}
 import org.bukkit.generator.ChunkGenerator
 import org.bukkit.plugin.java.JavaPlugin
-import BukkitConversions._
 
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.{Future, Promise}
-import scala.util.Success
+import scala.collection.JavaConversions._
+import scala.util.Try
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
@@ -30,6 +33,19 @@ class BukkitMain extends JavaPlugin with Listener {
 
   override def onLoad(): Unit = {
     databases.foreach(_.ensureIndexes())
+  }
+
+  def getPlayersInPlot(p: org.bukkit.entity.Player): java.util.List[org.bukkit.entity.Player] = {
+    val list = new util.ArrayList[org.bukkit.entity.Player]()
+    val resolver = bukkitPlotWorldResolver
+    resolver(p.getWorld).foreach { w =>
+      val srcId = w.getPlotId(p.getLocation)
+      for (u <- p.getWorld.getPlayers) {
+        if (w.getPlotId(u.getLocation) == srcId)
+          list.add(u)
+      }
+    }
+    list
   }
 
   def registerCommand(command: Command[CommandSender]): Unit = {
@@ -55,35 +71,56 @@ class BukkitMain extends JavaPlugin with Listener {
   }
 
   override def onDisable(): Unit = {
-    saveVehicles()
-  }
-
-  def saveVehicles(): Unit = {
-    vehicleTrackers.foreach(_.save(plugin))
   }
 
   override def getDefaultWorldGenerator(worldName: String, style: String): ChunkGenerator =
     getPlotWorldConfig(worldName).map(new PlotGenerator(_)).orNull
 
   @EventHandler
-  def onJoin(ev: PlayerJoinEvent) {
+  def onPluginEnable(ev: PluginEnableEvent): Unit = {
+    ev.getPlugin match {
+      case p : Core =>
+        edawg878 = Some(p)
+        getLogger.info("Connected to EDawg878-Core")
+      case p : WorldEditPlugin =>
+        val listener = new WorldEditListener(bukkitPlotWorldResolver, server, p, worldEditConfig)
+        worldedit = Some(p)
+        worldEditListener = Some(listener)
+        registerListener(listener)
+        getLogger.info("Connected to WorldEdit")
+      case _ =>
+    }
+  }
+
+  @EventHandler
+  def onPluginDisable(ev: PluginDisableEvent): Unit = {
+    ev.getPlugin match {
+      case p : Core =>
+        edawg878 = None
+        getLogger.info("Disconnected from EDawg878-Core")
+      case p : WorldEditPlugin =>
+        worldedit = None
+        worldEditListener.foreach(HandlerList.unregisterAll)
+        worldEditListener = None
+        getLogger.info("Disconnected from WorldEdit")
+      case _ =>
+    }
+  }
+
+  @EventHandler
+  def onJoin(ev: PlayerJoinEvent): Unit = {
     val p = ev.getPlayer
     playerDb.search(p.getUniqueId)
       .map(_.getOrElse(new PlayerData(p.getUniqueId, p.getName)))
       .map(_.updateName(p.getName).login)
-      .foreach { d =>
-        playerDb.save(d)
-        playerCache.update(d)
-      }
+      .foreach(playerDb.save)
   }
 
   @EventHandler
   def onQuit(ev: PlayerQuitEvent): Unit = {
     val p = ev.getPlayer
-    playerDb.find(p.getUniqueId) map { d =>
-      playerDb.save(d)
-      playerCache.update(d)
-    }
+    playerDb.find(p.getUniqueId)
+            .foreach(playerDb.save)
   }
 
 }
