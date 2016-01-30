@@ -294,6 +294,31 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
     }
   }
 
+  @EventHandler
+  def onItemDrop(ev: PlayerDropItemEvent): Unit = {
+    val player = ev.getPlayer
+    val spawnId = getPlotId(player.getWorld.getSpawnLocation)
+    val id = getPlotId(player.getLocation)
+    if (spawnId.isDefined && spawnId == id) {
+      player.sendMessage(err"You cannot drop items at spawn")
+      ev.setCancelled(true)
+    }
+  }
+
+  @EventHandler
+  def onCommandPreProcess(ev: PlayerCommandPreprocessEvent): Unit = {
+    val player = ev.getPlayer
+    val args = ev.getMessage.split(" ")
+    val label = args(0).toLowerCase
+    if (!player.hasPermission("plot.admin") && label.startsWith("/sethome")) {
+      if (getPlot(player.getLocation)
+          .map(plot => !plot.isAdded(player.getUniqueId))
+          .getOrElse(true)) {
+        player.sendMessage(err"You must be added to this plot to set home here")
+        ev.setCancelled(true)
+      }
+    }
+  }
 
   // TODO portal listener
 

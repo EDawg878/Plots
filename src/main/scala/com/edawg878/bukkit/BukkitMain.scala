@@ -1,6 +1,8 @@
 package com.edawg878.bukkit
 
 import java.util
+import java.util.UUID
+import javax.annotation.Nullable
 
 import com.edawg878.bukkit.plot.{WorldEditListener, PlotGenerator}
 import com.edawg878.common.Modules.BukkitModule

@@ -1,7 +1,5 @@
 package com.edawg878.bukkit.plot
 
-import java.awt.Rectangle
-
 import com.edawg878.bukkit.plot.Plot._
 import com.edawg878.common.PlotRepository
 import com.edawg878.common.Server.Server
@@ -139,8 +137,10 @@ class WorldEditListener(val resolver: PlotWorldResolver, val server: Server, wor
     val args = commandManager.commandDetection(ev.getMessage.split(" "))
     if (isWorldEditCommand(args(0))) {
       val label = args(0).replace("/", "").toLowerCase
-      withPlotStatus(p, Trusted, _.sendMessage(err"You must be trusted to this plot in order to use WorldEdit here"))
-        { (plotWorld, plot) =>
+      withPlotStatus(p, Trusted, p => {
+        p.sendMessage(err"You must be trusted to this plot in order to use WorldEdit here")
+        ev.setCancelled(true)
+      }) { (plotWorld, plot) =>
             val command = WorldEditCommand(p, ev.getMessage, label, args, plot, plotWorld)
             val cancel = filters.exists { f =>
               val res = f.check(command)

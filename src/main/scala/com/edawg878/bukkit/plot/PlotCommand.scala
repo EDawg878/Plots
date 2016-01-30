@@ -53,7 +53,7 @@ object PlotCommand {
   }
 
   class PlotCommand(val resolver: PlotWorldResolver, playerDb: PlayerRepository, plotDb: PlotRepository, val server: Server, val bukkitServer: org.bukkit.Server, plotClearConversation: PlotClearConversation,
-                     edawg878: Option[Core]) extends BukkitCommand[Config]
+                     edawg878: => Option[Core]) extends BukkitCommand[Config]
     with PlotHelper with BukkitReaders {
 
     def meta: CommandMeta = CommandMeta(cmd = "plot", perm = None, aliases = "p", "plotme")
@@ -153,11 +153,11 @@ object PlotCommand {
     def getPlotLimit(p: Player): Int =
       edawg878.map(_.getPlayerManager.getData(p).getPlotLimit).getOrElse(1)
 
-    def canClaimPlot(p: Player, pm: PlotWorld): Future[Boolean] = {
-      if (p.hasPermission("plot.admin")) Future(true)
+    def canClaimPlot(p: Player, pm: PlotWorld): Boolean = {
+      if (p.hasPermission("plot.admin")) true
       else {
         val homes = pm.getHomes(p.getUniqueId).length
-        Future(getPlotLimit(p) > homes)
+        getPlotLimit(p) > homes
       }
       //else playerDb.search(p.getUniqueId).map(_.exists(_.plotLimit > pm.getHomes(p.getUniqueId).length))
     }
@@ -196,8 +196,7 @@ object PlotCommand {
               val plot = w.getPlot(id)
               val expired = plot.fold(false)(_.isExpired)
               if (plot.isEmpty || expired) {
-                canClaimPlot(p, w).map { canClaim =>
-                  if (canClaim) {
+                  if (canClaimPlot(p, w)) {
                     if (expired) {
                       server.sync(new Runnable() {
                         def run() = w.clear(p.getWorld, id)
@@ -209,7 +208,6 @@ object PlotCommand {
                   } else {
                     p.sendMessage(err"You have reached your maximum number of plots")
                   }
-                }
               } else {
                 p.sendMessage(err"This plot has already been claimed")
               }
@@ -381,8 +379,7 @@ object PlotCommand {
         case Auto =>
           asPlayer(sender) { p =>
             inPlotWorld(p) { w =>
-              canClaimPlot(p, w) map { canClaim =>
-                if (canClaim) {
+                if (canClaimPlot(p, w) ) {
                   @tailrec
                   def auto(n: Int, x: Int, z: Int): (PlotId, Boolean) = {
                     val id = new PlotId(x, z, w.config.name)
@@ -415,7 +412,6 @@ object PlotCommand {
                 } else {
                   p.sendMessage(err"You cannot claim anymore plots")
                 }
-              }
             }
           }
         case Clear =>

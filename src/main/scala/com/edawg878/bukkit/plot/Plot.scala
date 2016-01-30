@@ -448,8 +448,11 @@ trait PlotHelper {
       }
     }
 
- def getPlot(loc: Location): Option[Plot] =
+  def getPlot(loc: Location): Option[Plot] =
    resolver(loc.getWorld).flatMap(w => w.getPlot(w.getPlotId(loc)))
+
+  def getPlotId(loc: Location): Option[PlotId] =
+    resolver(loc.getWorld).map(_.getPlotId(loc))
 
   def has(st: Status, p: Player, loc: Location, s: String): Either[String, Unit] = {
     def eval(cond: Boolean) = if (cond) Right() else Left(s)
