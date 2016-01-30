@@ -334,6 +334,7 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
       w.setStorm(false)
       w.setPVP(true)
       w.setDifficulty(PEACEFUL)
+      w.getWorldBorder.setCenter(0, 0)
       w.setGameRuleValue("mobGriefing", "false")
       w.setGameRuleValue("doMobSpawning", "false")
       w.setGameRuleValue("doFireTick", "false")

@@ -157,7 +157,7 @@ class WorldEditListener(val resolver: PlotWorldResolver, val server: Server, wor
     val region = if (plot.roadAccess) world.config.outer(plot.id) else world.config.inner(plot.id)
     val session = worldedit.getSession(p)
     val pos1 = new WorldEditVector(region.minX, world.config.MinY, region.minZ)
-    val pos2 = new WorldEditVector(region.maxX, world.config.MaxY, region.maxZ)
+    val pos2 = new WorldEditVector(region.maxX, p.getWorld.getMaxHeight, region.maxZ)
     val cuboid = new CuboidRegion(session.getSelectionWorld, pos1, pos2)
     val mask = new RegionMask(cuboid)
     session.setMask(mask)
