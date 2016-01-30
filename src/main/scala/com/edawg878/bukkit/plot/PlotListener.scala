@@ -273,19 +273,23 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
   @EventHandler(priority = LOWEST, ignoreCancelled = true)
   def onTeleport(ev: PlayerTeleportEvent): Unit = {
     resolver(ev.getTo.getWorld) foreach { w =>
-      Option(ev.getPlayer) foreach { p =>
-        val id = w.getPlotId(ev.getTo)
-        w.getPlot(id) foreach { plot =>
-            if (plot.isBanned(p.getUniqueId)) {
-              ev.setCancelled(true)
-              p.sendMessage(err"You cannot teleport to a plot that you are banned from")
-            } else if (plot.closed && plot.status(p) < HelperOffline) {
-              ev.setCancelled(true)
-              p.sendMessage(err"You cannot teleport to a plot that is closed to visitors")
-            } else if (w.border.isPast(ev.getTo)) {
-              p.sendMessage(err"You cannot teleport past the world border")
+      val maybePlayer = Option(ev.getPlayer)
+      if (w.border.isPast(ev.getTo)) {
+        maybePlayer.foreach(_.sendMessage(err"You cannot teleport past the world border"))
+        ev.setCancelled(true)
+      } else {
+          maybePlayer foreach { p =>
+            val id = w.getPlotId(ev.getTo)
+            w.getPlot(id) foreach { plot =>
+              if (plot.isBanned(p.getUniqueId)) {
+                p.sendMessage(err"You cannot teleport to a plot that you are banned from")
+                ev.setCancelled(true)
+              } else if (plot.closed && plot.status(p) < HelperOffline) {
+                p.sendMessage(err"You cannot teleport to a plot that is closed to visitors")
+                ev.setCancelled(true)
+              }
             }
-        }
+          }
       }
     }
   }
