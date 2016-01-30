@@ -175,10 +175,10 @@ object PlotCommand {
           asPlayer(sender)(p =>
             inPlotWorld(p){ w =>
               val id = w.getPlotId(p.getLocation)
-              val corners = id.insideCorners(w.config)
-              val outsideCorners = id.outsideCorners(w.config)
-              p.sendMessage(info"in = $corners")
-              p.sendMessage(info"out = $outsideCorners")
+              val in = w.config.inner(id)
+              val out = w.config.outer(id)
+              p.sendMessage(info"in = $in")
+              p.sendMessage(info"out = $out")
               w.getPlot(id).fold(p.sendMessage(info"Vacant plot ($id)")) { plot =>
                 names(plot.ids).foreach { nm =>
                   p.sendMessage(info"Plot ID: $id")
@@ -291,7 +291,7 @@ object PlotCommand {
                   w.update(banned)
                   plotDb.save(banned)
                   val l = c.player.getLocation
-                  if (plot.id.isInside(w.config, l)) c.player.teleport(c.player.getWorld.getSpawnLocation)
+                  if (w.config.outer(plot.id).isInside(l)) c.player.teleport(c.player.getWorld.getSpawnLocation)
                   p.sendMessage(info"Banned ${c.player.getName} from the plot")
               }
             }
@@ -307,7 +307,7 @@ object PlotCommand {
                 p.sendMessage(err"You cannot kick the plot owner")
               } else if (plot.isTrusted(c.pid)) {
                 p.sendMessage(err"You cannot kick a player who is trusted to the plot")
-              } else if (plot.id.isInside(w.config, c.player.getLocation)) {
+              } else if (w.config.outer(plot.id).isInside(c.player.getLocation)) {
                 c.player.teleport(c.player.getWorld.getSpawnLocation)
                 p.sendMessage(info"${c.player.getName} has been kicked from the plot")
                 // TODO broadcast kick message to local channel

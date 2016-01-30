@@ -135,12 +135,11 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
   def onPlayerBucketFill(ev: PlayerBucketFillEvent): Unit =
     cancel(ev, test(ev.getPlayer, ev.getBlockClicked.getLocation, Trusted, err"You must be trusted to the plot in order to fill buckets"))
 
-  @EventHandler(priority = HIGH, ignoreCancelled = true)
+  //@EventHandler(priority = HIGH, ignoreCancelled = true)
   def onPlayerInteract(ev: PlayerInteractEvent): Unit = {
     val p = ev.getPlayer
     if (isPlotWorld(p.getWorld) && ev.getAction == RIGHT_CLICK_BLOCK) {
       Option(ev.getClickedBlock).map(_.getLocation).foreach { loc =>
-
         /*
             if (!settings.isAllowedInteract(block.getType.name)) {
             checkCancel(event, player, block.getLocation)
@@ -244,7 +243,7 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
     }
   }
 
-  //@EventHandler(priority = LOWEST, ignoreCancelled = true)
+  @EventHandler(priority = LOWEST, ignoreCancelled = true)
   def onPlayerMove(ev: PlayerMoveEvent): Unit = {
     if (ev.getFrom.getBlockX != ev.getTo.getBlockX
       || ev.getFrom.getBlockZ != ev.getTo.getBlockZ) {
@@ -271,7 +270,7 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
     }
   }
 
-  //@EventHandler(priority = LOWEST, ignoreCancelled = true)
+  @EventHandler(priority = LOWEST, ignoreCancelled = true)
   def onTeleport(ev: PlayerTeleportEvent): Unit = {
     resolver(ev.getTo.getWorld) foreach { w =>
       Option(ev.getPlayer) foreach { p =>

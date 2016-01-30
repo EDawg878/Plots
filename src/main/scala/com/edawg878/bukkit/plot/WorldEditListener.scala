@@ -111,8 +111,8 @@ class WorldEditListener(val resolver: PlotWorldResolver, val server: Server, wor
             val min = selection.getMinimumPoint
             val max = selection.getMaximumPoint
             def insidePlot(loc: Location) = {
-              if (roadAccess) id.isInside(plotConfig, loc)
-              else id.isInside(plotConfig, loc) && !plotConfig.isRoad(loc)
+              val r = if (roadAccess) plotConfig.outer(id) else plotConfig.inner(id)
+              r.isInside(loc)
             }
             if (insidePlot(min) && insidePlot(max)) {
               val session = worldedit.getSession(c.player)
@@ -148,23 +148,19 @@ class WorldEditListener(val resolver: PlotWorldResolver, val server: Server, wor
               res.isLeft
             }
             if (cancel) ev.setCancelled(true)
-            else setMask(p, plot.id, plotWorld)
+            else setMask(p, plot, plotWorld)
         }
     }
   }
 
-  def setMask(p: Player, id: PlotId, world: PlotWorld): Unit = {
-    val corners = id.insideCorners(world.config)
-    val outsideCorners = id.outsideCorners(world.config)
-    p.sendMessage(info"in = $corners")
-    p.sendMessage(info"out = $outsideCorners")
-    val top = corners.top
-    val bottom = corners.bottom
+  def setMask(p: Player, plot: Plot, world: PlotWorld): Unit = {
+    val region = if (plot.roadAccess) world.config.outer(plot.id) else world.config.inner(plot.id)
+    if (plot.roadAccess) p.sendMessage("USING OUTER = ")
     val session = worldedit.getSession(p)
-    val pos1 = new WorldEditVector(bottom.x, bottom.y, bottom.z)
-    val pos2 = new WorldEditVector(top.x, top.y, top.z)
-    val region = new CuboidRegion(session.getSelectionWorld, pos1, pos2)
-    val mask = new RegionMask(region)
+    val pos1 = new WorldEditVector(region.minX, world.config.MinY, region.minZ)
+    val pos2 = new WorldEditVector(region.maxX, world.config.MaxY, region.maxZ)
+    val cuboid = new CuboidRegion(session.getSelectionWorld, pos1, pos2)
+    val mask = new RegionMask(cuboid)
     session.setMask(mask)
   }
 
