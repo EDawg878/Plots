@@ -249,32 +249,35 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
       || ev.getFrom.getBlockZ != ev.getTo.getBlockZ) {
       resolver(ev.getTo.getWorld) foreach { pm =>
         val p = ev.getPlayer
-        if (pm.border.isPast(ev.getTo)) {
-          ev.setTo(pm.border.knockback(ev.getTo))
-          p.sendMessage(err"You have reached the end of this world")
-        } else {
-          val id = pm.getPlotId(ev.getTo)
-          pm.getPlot(id) foreach { plot =>
-            plot.entryStatus(p) match {
-              case Denied =>
-                // TODO knockback
-                p.sendMessage(err"You are banned from this plot")
-              case Closed =>
-                // TODO knockback
-                p.sendMessage(err"This plot is closed to visitors")
-              case _ =>
-            }
+        val id = pm.getPlotId(ev.getTo)
+        pm.getPlot(id) foreach { plot =>
+          plot.entryStatus(p) match {
+            case Denied =>
+              p.teleport(p.getWorld.getSpawnLocation)
+              p.sendMessage(err"You are banned from this plot")
+            case Closed =>
+              p.teleport(p.getWorld.getSpawnLocation)
+              p.sendMessage(err"This plot is closed to visitors")
+            case _ =>
           }
         }
       }
     }
   }
 
+  def isPastBorder(loc: Location): Boolean = {
+    val border = loc.getWorld.getWorldBorder
+    val size = border.getSize.toInt / 2
+    val x = loc.getBlockX
+    val z = loc.getBlockZ
+    math.abs(x) > size || math.abs(z) > size
+  }
+
   @EventHandler(priority = LOWEST, ignoreCancelled = true)
   def onTeleport(ev: PlayerTeleportEvent): Unit = {
     resolver(ev.getTo.getWorld) foreach { w =>
       val maybePlayer = Option(ev.getPlayer)
-      if (w.border.isPast(ev.getTo)) {
+      if (isPastBorder(ev.getTo)) {
         maybePlayer.foreach(_.sendMessage(err"You cannot teleport past the world border"))
         ev.setCancelled(true)
       } else {

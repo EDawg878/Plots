@@ -197,12 +197,8 @@ object PlotCommand {
               val expired = plot.fold(false)(_.isExpired)
               if (plot.isEmpty || expired) {
                   if (canClaimPlot(p, w)) {
-                    if (expired) {
-                      server.sync(new Runnable() {
-                        def run() = w.clear(p.getWorld, id)
-                      })
-                    }
-                    val plot = w.claim(p, id)
+                    if (expired) server.sync(()=> w.clear(p.getWorld, id))
+                    val plot = w.claim(p, p.getWorld, id)
                     plotDb.save(plot)
                     p.sendMessage(info"Claimed plot ($id)")
                   } else {
@@ -228,9 +224,7 @@ object PlotCommand {
                 .fold(w.getHome(pid, c.home))(w.getHome(pid, _))
                 .fold(p.sendMessage(err"Home '${c.home}' not found")){ plot =>
                   p.sendMessage(info"Teleporting to plot (${plot.id})")
-                  server.sync(new Runnable() {
-                    def run() = p.teleport(w.getHomeLocation(p.getWorld, plot.id))
-                  })
+                  server.sync(()=> p.teleport(w.getHomeLocation(p.getWorld, plot.id)))
                 }
               c.sub collect {
                 case Home => home(p.getUniqueId)
@@ -279,12 +273,14 @@ object PlotCommand {
                   p.sendMessage(err"You cannot ban the plot owner")
                 } else if (plot.isBanned(c.pid)) {
                   p.sendMessage(err"${c.player.getName} is already banned from the plot")
+                } else if (w.config.isSpawnPlot(p.getWorld, plot.id)) {
+                  p.sendMessage(err"You cannot ban somebody from the spawn")
                 } else {
                   val banned = plot.copy(banned = plot.banned + c.pid, helpers = plot.helpers - c.pid, trusted = plot.trusted - c.pid)
                   w.update(banned)
                   plotDb.save(banned)
-                  val l = c.player.getLocation
-                  if (w.config.outer(plot.id).isInside(l)) c.player.teleport(c.player.getWorld.getSpawnLocation)
+                  val region = w.config.outer(plot.id)
+                  if (region.isInside(c.player.getLocation)) c.player.teleport(c.player.getWorld.getSpawnLocation)
                   p.sendMessage(info"Banned ${c.player.getName} from the plot")
               }
             }
@@ -300,6 +296,8 @@ object PlotCommand {
                 p.sendMessage(err"You cannot kick the plot owner")
               } else if (plot.isTrusted(c.pid)) {
                 p.sendMessage(err"You cannot kick a player who is trusted to the plot")
+              } else if (w.config.isSpawnPlot(p.getWorld, plot.id)) {
+                p.sendMessage(err"You cannot kick somebody from the spawn")
               } else if (w.config.outer(plot.id).isInside(c.player.getLocation)) {
                 c.player.teleport(c.player.getWorld.getSpawnLocation)
                 p.sendMessage(info"${c.player.getName} has been kicked from the plot")
@@ -358,6 +356,8 @@ object PlotCommand {
             withPlotStatus(p, Owner, _.sendMessage(err"You do not have permission to close the plot")) { (w, plot) =>
               if (plot.closed) {
                 p.sendMessage(err"The plot is already closed to visitors")
+              } else if (w.config.isSpawnPlot(p.getWorld, plot.id)) {
+                p.sendMessage(err"You cannot close the spawn")
               } else {
                 val closed = plot.copy(closed = true)
                 w.update(closed)
@@ -394,19 +394,12 @@ object PlotCommand {
                   }
                   auto(0, 0, 0) match {
                     case (id, expired) =>
-                      if (expired) {
-                        server.sync(new Runnable() {
-                          override def run() = w.clear(p.getWorld, id)
-                        })
-                      }
-                      val updated = w.claim(p, id)
+                      if (expired) server.sync(()=> w.clear(p.getWorld, id))
+                      val updated = w.claim(p, p.getWorld, id)
                       plotDb.save(updated)
-                      server.sync(
-                        new Runnable {
-                          override def run(): Unit = {
-                            p.teleport(w.getHomeLocation(p.getWorld, id))
-                            p.sendMessage(info"Claimed plot ($id)")
-                          }
+                      server.sync(()=> {
+                          p.teleport(w.getHomeLocation(p.getWorld, id))
+                          p.sendMessage(info"Claimed plot ($id)")
                         })
                   }
                 } else {

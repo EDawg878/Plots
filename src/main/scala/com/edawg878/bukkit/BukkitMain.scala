@@ -12,6 +12,7 @@ import com.sk89q.worldedit.bukkit.WorldEditPlugin
 import org.bukkit.command.{CommandExecutor, CommandSender}
 import org.bukkit.event.player.{PlayerJoinEvent, PlayerQuitEvent}
 import org.bukkit.event.server.{PluginDisableEvent, PluginEnableEvent}
+import org.bukkit.event.world.WorldLoadEvent
 import org.bukkit.event.{HandlerList, EventHandler, Listener}
 import org.bukkit.generator.ChunkGenerator
 import org.bukkit.plugin.java.JavaPlugin
@@ -83,6 +84,11 @@ class BukkitMain extends JavaPlugin with Listener {
 
   override def getDefaultWorldGenerator(worldName: String, style: String): ChunkGenerator =
     getPlotWorldConfig(worldName).map(new PlotGenerator(_)).orNull
+
+  @EventHandler
+  def onWorldLoad(ev: WorldLoadEvent): Unit = {
+    setWorldBorder(ev.getWorld)
+  }
 
   @EventHandler
   def onPluginEnable(ev: PluginEnableEvent): Unit = {

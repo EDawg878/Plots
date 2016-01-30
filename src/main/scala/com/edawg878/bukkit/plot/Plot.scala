@@ -45,11 +45,38 @@ case class PlotWorldConfig(name: String,
                      style: PlotStyle = PlotStyle()) {
 
   val Center = Position(0, 0, 0)
+  val CenterId = PlotId.fromPosition(this, Center)
   val ChunkSize = 16
   val ChunkExp = Math.getExponent(ChunkSize)
   val WorldExp = Math.getExponent(plotSize)
   val MaxY = math.max(pathHeight, math.max(borderHeight, topHeight))
-  val MinY = if (buildOnFloor) 1 else 2
+  val MinY = if (buildOnFloor) 0 else 1
+
+  def parsePlotId(p: String): Option[PlotId] = {
+    val s = p.split(";")
+    Try(PlotId(s(0).toInt, s(1).toInt, name)).toOption
+  }
+
+  def getPlotId(p: Position): PlotId =
+    PlotId(p.x >> WorldExp, p.z >> WorldExp, name)
+
+  def getPlotId(locX: Int, locZ: Int): PlotId =
+    PlotId(locX >> WorldExp, locZ >> WorldExp, name)
+
+  def getPlotId(loc: Location): PlotId = getPlotId(loc.getBlockX, loc.getBlockZ)
+
+  def isSpawnPlot(bw: World, id: PlotId): Boolean =
+    getPlotId(bw.getSpawnLocation) == id
+
+  def worldBorderSize(ids: Iterable[PlotId]): Int = {
+    if (ids.isEmpty) worldBorderSize(CenterId)
+    else ids.map(worldBorderSize).max
+  }
+
+  def worldBorderSize(id: PlotId): Int = {
+    val r = outer(id)
+    (math.max(r.maxX, r.maxZ) * 2) + 1
+  }
 
   def outer(id: PlotId): BlockRegion = {
     val minX = id.x << WorldExp
@@ -169,44 +196,6 @@ case class BlockRegion(minX: Int, maxX: Int, minZ: Int, maxZ: Int) extends Regio
   
 }
 
-object Border {
-
-  def find(c: PlotWorldConfig, ids: Iterable[PlotId]): Border = {
-    val regions = ids.map(c.outer)
-    val first = initial(c).copy(knockback = c.pathWidth - 1)
-    if (regions.isEmpty) first
-    else first.copy(region = regions.reduce((a, b) => a.grow(b)))
-  }
-  
-  def create(c: PlotWorldConfig, id: PlotId): Border = Border(region = c.outer(id))
-  def initial(c: PlotWorldConfig): Border = Border(region = c.outer(PlotId.fromPosition(c, c.Center)))
-  
-}
-
-case class Border(knockback: Int = 0, region: BlockRegion) {
-  
-  def isPast(loc: Location): Boolean =
-    region.isPast(loc.getBlockX, loc.getBlockZ)
-
-  def knockback(loc: Location): Location = {
-    val locX = loc.getX
-    val locZ = loc.getZ
-    val x =
-      if (locX <= region.minX) region.minX + knockback
-      else if (locX >= region.maxX) region.maxX - knockback
-      else locX
-    val z =
-      if (locZ <= region.minZ) region.minZ + knockback
-      else if (locZ >= region.maxZ) region.maxZ - knockback
-      else locZ
-    val adjusted = loc.clone
-    adjusted.setX(x)
-    adjusted.setZ(z)
-    adjusted
-  }
-
-}
-
 object PlotId {
 
   def parse(c: PlotWorldConfig, p: String): Option[PlotId] = {
@@ -233,10 +222,6 @@ case class PlotId(x: Int, z: Int, world: String) {
     val maxZ = minZ + chunks
     BlockRegion(minX, maxX, minZ, maxZ)
   }
-
-  def distanceSq(id: PlotId): Double = math.pow(id.x - x, 2) + math.pow(id.z - z, 2)
-
-  def distance(id: PlotId): Double = math.sqrt(distanceSq(id))
 
   override def toString: String = Seq(x, z).mkString(";")
 
@@ -364,27 +349,39 @@ trait PlotWorldResolver {
 
 object PlotWorld {
 
-  def load(c: PlotWorldConfig, db: PlotRepository): Future[PlotWorld] =
+  def load(c: PlotWorldConfig, db: PlotRepository): Future[PlotWorld] = {
     db.findAll(c.name)
-        .map(_.map(p => p.id -> p))
-        .map(TrieMap.apply)
-        .map(plots => PlotWorld(c, plots, Border.find(c, plots.keys)))
+      .map(_.map(p => p.id -> p))
+      .map(TrieMap.apply)
+      .map(PlotWorld(c, _))
+  }
 
 }
 
-case class PlotWorld(config: PlotWorldConfig, plots: TrieMap[PlotId, Plot], var border: Border) {
+case class PlotWorld(config: PlotWorldConfig, plots: TrieMap[PlotId, Plot]) {
 
   def update(plot: Plot): Unit = plots.put(plot.id, plot)
+
+  def setInitialBorder(bw: World): Unit = {
+    val border = bw.getWorldBorder
+    val size = config.worldBorderSize(plots.keys)
+    border.setSize(size)
+  }
+
+  def updateBorderSize(bw: World, id: PlotId): Unit = {
+    val border = bw.getWorldBorder
+    val size = math.max(border.getSize.toInt, config.worldBorderSize(id))
+    border.setSize(size)
+  }
 
   def getPlotId(loc: Location): PlotId = PlotId.fromBlockLocation(config, loc.getBlockX, loc.getBlockZ)
 
   def getPlot(id: PlotId): Option[Plot] = plots.get(id)
 
-  def claim(p: Player, id: PlotId): Plot = {
+  def claim(p: Player, bw: World, id: PlotId): Plot = {
     val plot = Plot(p.getUniqueId, id)
     plots.put(id, plot)
-    val region = config.outer(id)
-    border = border.copy(region = border.region.grow(region))
+    updateBorderSize(bw, id)
     plot
   }
 
@@ -442,7 +439,7 @@ trait PlotHelper {
 
   def withPlotStatus(p: Player, st: Status, err: Player => Unit)(f: (PlotWorld, Plot) => Unit): Unit =
     inPlotWorld(p) { w =>
-      w.getPlot(w.getPlotId(p.getLocation)).fold(p.sendMessage(err"No plot found")) { plot =>
+      w.getPlot(w.getPlotId(p.getLocation)).fold(err(p)) { plot =>
         if (plot.status(server, p).has(st)) f(w, plot)
         else err(p)
       }
@@ -457,7 +454,7 @@ trait PlotHelper {
   def has(st: Status, p: Player, loc: Location, s: String): Either[String, Unit] = {
     def eval(cond: Boolean) = if (cond) Right() else Left(s)
     resolver(loc.getWorld) map { w =>
-      if (!w.config.buildOnFloor && loc.getBlockY <= 0) Left(err"You cannot build on the floor level")
+      if (loc.getBlockY < w.config.MinY) Left(err"You cannot build on the floor level")
       else if (p.hasPermission("plot.admin")) Right()
       else {
         w.getPlot(w.getPlotId(loc)) map { plot =>

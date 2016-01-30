@@ -16,7 +16,7 @@ import scala.concurrent.duration._
  */
 object BukkitConversions {
 
-  implicit def funcToRunnable(f: => Unit) = new Runnable { def run() = f }
+  implicit def funcToRunnable(f: ()=> Unit): Runnable = new Runnable { def run() = f() }
 
   implicit class BukkitPlugin(plugin: org.bukkit.plugin.Plugin) {
 
@@ -67,14 +67,14 @@ object BukkitConversions {
 
       def getPlayer(id: UUID): Option[Player] = Option(s.getPlayer(id)).map(_.toPlayer)
 
-      def sync(f: Runnable, delay: Long): Unit = s.getScheduler.runTaskLater(p, f, delay)
+      def sync(f: ()=> Unit, delay: Long): Unit = s.getScheduler.runTaskLater(p, f, delay)
 
-      def async(f: => Unit, delay: Long): Unit = s.getScheduler.runTaskLaterAsynchronously(p, f, delay)
+      def async(f: ()=> Unit, delay: Long): Unit = s.getScheduler.runTaskLaterAsynchronously(p, f, delay)
 
-      def schedule(d: Duration, delay: Long, f: => Unit): Task =
+      def schedule(d: Duration, delay: Long, f: ()=> Unit): Task =
         toTask(s.getScheduler.runTaskTimer(p, f, delay, d.toTicks))
 
-      def scheduleAsync(d: Duration, delay: Long, f: => Unit) =
+      def scheduleAsync(d: Duration, delay: Long, f: ()=> Unit) =
         toTask(s.getScheduler.runTaskTimerAsynchronously(p, f, delay, d.toTicks))
 
       def shutdown(): Unit = s.shutdown()

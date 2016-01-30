@@ -186,13 +186,13 @@ object Server {
 
     def isOnline(id: UUID): Boolean = getPlayer(id).isDefined
 
-    def sync(f: Runnable, delay: Long = 0L): Unit
+    def sync(f: ()=> Unit, delay: Long = 0L): Unit
 
-    def async(f: => Unit, delay: Long = 0L): Unit
+    def async(f: ()=> Unit, delay: Long = 0L): Unit
 
-    def schedule(period: Duration, delay: Long = 0L, f: => Unit): Task
+    def schedule(period: Duration, delay: Long = 0L, f: ()=> Unit): Task
 
-    def scheduleAsync(period: Duration, delay: Long = 0L, f: => Unit): Task
+    def scheduleAsync(period: Duration, delay: Long = 0L, f: ()=> Unit): Task
 
     def shutdown(): Unit
 

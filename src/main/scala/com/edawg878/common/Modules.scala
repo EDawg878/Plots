@@ -8,6 +8,7 @@ import com.edawg878.bukkit.plot._
 import com.edawg878.common.Server._
 import com.edawg878.core.Core
 import com.sk89q.worldedit.bukkit.WorldEditPlugin
+import org.bukkit.{World, Bukkit}
 import org.bukkit.command.CommandSender
 import org.bukkit.event.Listener
 import reactivemongo.api.MongoDriver
@@ -59,14 +60,21 @@ object Modules {
     def bukkitServer: org.bukkit.Server = bukkitPlugin.getServer
 
     val pluginManager: org.bukkit.plugin.PluginManager = bukkitServer.getPluginManager
+
     var edawg878: Option[Core] = None
     var worldedit: Option[WorldEditPlugin] = None
+    var worldEditListener: Option[WorldEditListener] = None
+
 
     val bukkitPlotWorldResolver = new PlotWorldResolver {
       override def apply(s: String): Option[PlotWorld] = plotWorlds.get(s)
     }
 
+    def getPlotWorld(s: String): Option[PlotWorld] = bukkitPlotWorldResolver(s)
     def getPlotWorldConfig(s: String): Option[PlotWorldConfig] = plotWorldConfig.find(_.name == s)
+
+    def setWorldBorder(bw: World): Unit =
+      getPlotWorld(bw.getName).foreach(_.setInitialBorder(bw))
 
     def loadPlotWorlds: Map[String, PlotWorld] = {
       val fMan = plotWorldConfig.map(PlotWorld.load(_, plotDb))
@@ -78,15 +86,14 @@ object Modules {
     def worlds: Seq[UUID] = bukkitServer.getWorlds.map(_.getUID)
 
     def startTask(t: Schedulable): Task = {
-      if (t.async) server.scheduleAsync(t.period, t.delay, t.run())
-      else server.schedule(t.period, t.delay, t.run())
+      if (t.async) server.scheduleAsync(t.period, t.delay, t.run)
+      else server.schedule(t.period, t.delay, t.run)
     }
 
     val plotClearConversation = new PlotClearConversation(bukkitPlotWorldResolver, bukkitPlugin, plotDb, bukkitServer)
     val plotCommand = new PlotCommand(bukkitPlotWorldResolver, playerDb, plotDb, server, bukkitServer, plotClearConversation, edawg878)
 
     val plotListener = new PlotListener(bukkitPlotWorldResolver, plotDb, server, bukkitServer)
-    var worldEditListener: Option[WorldEditListener] = None
 
     val commands = Seq[Command[CommandSender]](plotCommand)
     val listeners = Seq[Listener](plotListener)
