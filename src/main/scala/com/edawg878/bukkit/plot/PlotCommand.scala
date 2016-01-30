@@ -157,7 +157,6 @@ object PlotCommand {
       if (p.hasPermission("plot.admin")) Future(true)
       else {
         val homes = pm.getHomes(p.getUniqueId).length
-        p.sendMessage(info"n homes = $homes plot limit = ${getPlotLimit(p)}")
         Future(getPlotLimit(p) > homes)
       }
       //else playerDb.search(p.getUniqueId).map(_.exists(_.plotLimit > pm.getHomes(p.getUniqueId).length))
@@ -175,10 +174,6 @@ object PlotCommand {
           asPlayer(sender)(p =>
             inPlotWorld(p){ w =>
               val id = w.getPlotId(p.getLocation)
-              val in = w.config.inner(id)
-              val out = w.config.outer(id)
-              p.sendMessage(info"in = $in")
-              p.sendMessage(info"out = $out")
               w.getPlot(id).fold(p.sendMessage(info"Vacant plot ($id)")) { plot =>
                 names(plot.ids).foreach { nm =>
                   p.sendMessage(info"Plot ID: $id")

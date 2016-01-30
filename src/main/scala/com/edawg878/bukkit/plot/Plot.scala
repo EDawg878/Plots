@@ -172,7 +172,7 @@ case class BlockRegion(minX: Int, maxX: Int, minZ: Int, maxZ: Int) extends Regio
 object Border {
 
   def find(c: PlotWorldConfig, ids: Iterable[PlotId]): Border = {
-    val regions = ids.map(_.region(c))
+    val regions = ids.map(c.outer)
     val first = initial(c).copy(knockback = c.pathWidth - 1)
     if (regions.isEmpty) first
     else first.copy(region = regions.reduce((a, b) => a.grow(b)))
@@ -223,16 +223,6 @@ object PlotId {
 }
 
 case class PlotId(x: Int, z: Int, world: String) {
-
-  def region(c: PlotWorldConfig): BlockRegion = {
-    val blockX = x << c.WorldExp
-    val blockZ = z << c.WorldExp
-    val minX = blockX
-    val maxX = blockX + c.plotSize
-    val minZ = blockZ
-    val maxZ = blockZ + c.plotSize
-    BlockRegion(minX, maxX, minZ, maxZ)
-  }
 
   def chunkRegion(c: PlotWorldConfig): BlockRegion = {
     val exp = c.WorldExp - c.ChunkExp
@@ -393,7 +383,7 @@ case class PlotWorld(config: PlotWorldConfig, plots: TrieMap[PlotId, Plot], var 
   def claim(p: Player, id: PlotId): Plot = {
     val plot = Plot(p.getUniqueId, id)
     plots.put(id, plot)
-    val region = plot.id.region(config)
+    val region = config.outer(id)
     border = border.copy(region = border.region.grow(region))
     plot
   }
@@ -402,8 +392,8 @@ case class PlotWorld(config: PlotWorldConfig, plots: TrieMap[PlotId, Plot], var 
 
   def getHomeLocation(bw: World, id: PlotId): Location = {
     val region = config.outer(id)
-    val x = region.minX + config.pathWidth
-    val z = region.minZ + config.pathWidth
+    val x = region.minX + config.pathWidth - 1
+    val z = region.minZ + config.pathWidth - 1
     val y = bw.getHighestBlockYAt(x, z)
     val yaw = -45f
     val pitch = 0f

@@ -155,7 +155,6 @@ class WorldEditListener(val resolver: PlotWorldResolver, val server: Server, wor
 
   def setMask(p: Player, plot: Plot, world: PlotWorld): Unit = {
     val region = if (plot.roadAccess) world.config.outer(plot.id) else world.config.inner(plot.id)
-    if (plot.roadAccess) p.sendMessage("USING OUTER = ")
     val session = worldedit.getSession(p)
     val pos1 = new WorldEditVector(region.minX, world.config.MinY, region.minZ)
     val pos2 = new WorldEditVector(region.maxX, world.config.MaxY, region.maxZ)
@@ -181,8 +180,8 @@ class WorldEditListener(val resolver: PlotWorldResolver, val server: Server, wor
   }
 
   def parseAbsDouble(s: String): Option[Double] = {
-    if (NumberUtils.isNumber(s)) None
-    else Some(math.abs(NumberUtils.toDouble(s)))
+    if (NumberUtils.isNumber(s)) Some(math.abs(NumberUtils.toDouble(s)))
+    else None
   }
 
 }

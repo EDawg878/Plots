@@ -6,7 +6,6 @@ import com.edawg878.bukkit.plot.{WorldEditListener, PlotGenerator}
 import com.edawg878.common.Modules.BukkitModule
 import com.edawg878.common.{Command, PlayerData}
 import com.edawg878.core.Core
-import com.sk89q.worldedit.WorldEdit
 import com.sk89q.worldedit.bukkit.WorldEditPlugin
 import org.bukkit.command.{CommandExecutor, CommandSender}
 import org.bukkit.event.player.{PlayerJoinEvent, PlayerQuitEvent}
@@ -18,7 +17,6 @@ import org.bukkit.plugin.java.JavaPlugin
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.collection.JavaConversions._
-import scala.util.Try
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
@@ -46,6 +44,14 @@ class BukkitMain extends JavaPlugin with Listener {
       }
     }
     list
+  }
+
+  def isTrusted(p: org.bukkit.entity.Player): java.lang.Boolean = {
+    val resolver = bukkitPlotWorldResolver
+    if (resolver(p.getWorld).flatMap(w => w.getPlot(w.getPlotId(p.getLocation))).exists(_.isTrusted(p.getUniqueId)))
+      java.lang.Boolean.TRUE
+    else
+      java.lang.Boolean.FALSE
   }
 
   def registerCommand(command: Command[CommandSender]): Unit = {
