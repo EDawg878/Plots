@@ -1,6 +1,7 @@
 package com.edawg878.bukkit.plot
 
 import com.edawg878.bukkit.plot.Plot._
+import org.bukkit.plugin.Plugin
 import com.edawg878.common.PlotRepository
 import com.edawg878.common.Server.Server
 import com.sk89q.worldedit.bukkit.WorldEditPlugin
@@ -15,7 +16,7 @@ import org.bukkit.entity.Player
 import org.bukkit.event.{EventHandler, Listener}
 import org.bukkit.event.player.PlayerCommandPreprocessEvent
 import com.edawg878.common.Color.Formatter
-import com.sk89q.worldedit.{Vector => WorldEditVector}
+import com.sk89q.worldedit.{Vector => WorldEditVector, WorldEdit}
 
 case class WorldEditConfig(maxBlockTypes: Int, bannedCommands: Set[String], selectionCommands: Set[String], limits: Map[String, Int]) {
 
@@ -44,6 +45,13 @@ trait WorldEditFilter {
 
 }
 
+object WorldEditListener {
+
+  def create(resolver: PlotWorldResolver, server: Server, plugin: Plugin, config: WorldEditConfig) =
+    new WorldEditListener(resolver, server, plugin.asInstanceOf[WorldEditPlugin], config)
+
+}
+
 class WorldEditListener(val resolver: PlotWorldResolver, val server: Server, worldedit: WorldEditPlugin, config: WorldEditConfig)
   extends Listener with PlotHelper {
 
@@ -51,6 +59,7 @@ class WorldEditListener(val resolver: PlotWorldResolver, val server: Server, wor
 
   val banFilter = new WorldEditFilter {
     override def check(c: WorldEditCommand): Either[String, Unit] = {
+      WorldEdit.getInstance()
       if (config.isBanned(c.label)) Left(err"This WorldEdit command is banned")
       else Right()
     }

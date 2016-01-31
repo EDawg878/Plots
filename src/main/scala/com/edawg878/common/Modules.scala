@@ -3,12 +3,10 @@ package com.edawg878.common
 import java.util.UUID
 
 import com.edawg878.bukkit.plot.PlotClearConversation.PlotClearConversation
-import com.edawg878.bukkit.plot.PlotCommand.PlotCommand
+import com.edawg878.bukkit.plot.PlotCommand.{PlotLimitChecker, DefaultPlotLimitChecker, PlotCommand}
 import com.edawg878.bukkit.plot._
 import com.edawg878.common.Server._
-import com.edawg878.core.Core
-import com.sk89q.worldedit.bukkit.WorldEditPlugin
-import org.bukkit.{World, Bukkit}
+import org.bukkit.World
 import org.bukkit.command.CommandSender
 import org.bukkit.event.Listener
 import reactivemongo.api.MongoDriver
@@ -17,7 +15,6 @@ import scala.collection.JavaConversions._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
-import scala.util.Try
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
@@ -61,11 +58,6 @@ object Modules {
 
     val pluginManager: org.bukkit.plugin.PluginManager = bukkitServer.getPluginManager
 
-    var edawg878: Option[Core] = None
-    var worldedit: Option[WorldEditPlugin] = None
-    var worldEditListener: Option[WorldEditListener] = None
-
-
     val bukkitPlotWorldResolver = new PlotWorldResolver {
       override def apply(s: String): Option[PlotWorld] = plotWorlds.get(s)
     }
@@ -91,9 +83,11 @@ object Modules {
     }
 
     val plotClearConversation = new PlotClearConversation(bukkitPlotWorldResolver, bukkitPlugin, plotDb, bukkitServer)
-    val plotCommand = new PlotCommand(bukkitPlotWorldResolver, playerDb, plotDb, server, bukkitServer, plotClearConversation, edawg878)
-
     val plotListener = new PlotListener(bukkitPlotWorldResolver, plotDb, server, bukkitServer)
+
+    var worldEditListener: Option[WorldEditListener] = None
+    var plotLimitChecker: PlotLimitChecker = new DefaultPlotLimitChecker(playerDb)
+    val plotCommand = new PlotCommand(bukkitPlotWorldResolver, playerDb, plotDb, server, bukkitServer, plotClearConversation, plotLimitChecker)
 
     val commands = Seq[Command[CommandSender]](plotCommand)
     val listeners = Seq[Listener](plotListener)

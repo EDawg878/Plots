@@ -51,7 +51,7 @@ trait PlayerRepository {
   def searchAll(name: String): Future[Seq[PlayerData]]
 
   def find(name: String): Future[PlayerData] =
-    search(name).map(_.headOption.getOrElse(throw new PlayerNotFound(name)))
+    search(name).map(_.getOrElse(throw new PlayerNotFound(name)))
 
   def save(data: PlayerData): Unit
 

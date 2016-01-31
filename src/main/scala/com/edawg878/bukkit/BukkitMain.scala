@@ -1,14 +1,11 @@
 package com.edawg878.bukkit
 
 import java.util
-import java.util.UUID
-import javax.annotation.Nullable
 
+import com.edawg878.bukkit.plot.PlotCommand.{EDawgPlotLimitChecker, DefaultPlotLimitChecker}
 import com.edawg878.bukkit.plot.{WorldEditListener, PlotGenerator}
 import com.edawg878.common.Modules.BukkitModule
 import com.edawg878.common.{Command, PlayerData}
-import com.edawg878.core.Core
-import com.sk89q.worldedit.bukkit.WorldEditPlugin
 import org.bukkit.command.{CommandExecutor, CommandSender}
 import org.bukkit.event.player.{PlayerJoinEvent, PlayerQuitEvent}
 import org.bukkit.event.server.{PluginDisableEvent, PluginEnableEvent}
@@ -56,7 +53,7 @@ class BukkitMain extends JavaPlugin with Listener {
     else
       java.lang.Boolean.FALSE
   }
-
+  
   def registerCommand(command: Command[CommandSender]): Unit = {
     val meta = command.meta
     val exec = new CommandExecutor {
@@ -92,13 +89,13 @@ class BukkitMain extends JavaPlugin with Listener {
 
   @EventHandler
   def onPluginEnable(ev: PluginEnableEvent): Unit = {
-    ev.getPlugin match {
-      case p : Core =>
-        edawg878 = Some(p)
+    val plugin = ev.getPlugin
+    plugin.getName match {
+      case "EDawg878-Core" =>
+        plotLimitChecker = new EDawgPlotLimitChecker
         getLogger.info("Connected to EDawg878-Core")
-      case p : WorldEditPlugin =>
-        val listener = new WorldEditListener(bukkitPlotWorldResolver, server, p, worldEditConfig)
-        worldedit = Some(p)
+      case "WorldEdit" =>
+        val listener = WorldEditListener.create(bukkitPlotWorldResolver, server, plugin, worldEditConfig)
         worldEditListener = Some(listener)
         registerListener(listener)
         getLogger.info("Connected to WorldEdit")
@@ -108,12 +105,13 @@ class BukkitMain extends JavaPlugin with Listener {
 
   @EventHandler
   def onPluginDisable(ev: PluginDisableEvent): Unit = {
-    ev.getPlugin match {
-      case p : Core =>
-        edawg878 = None
+    val plugin = ev.getPlugin
+    plugin.getName match {
+      case "EDawg878-Core" =>
+        plotLimitChecker = new DefaultPlotLimitChecker(playerDb)
+        registerCommand(plotCommand)
         getLogger.info("Disconnected from EDawg878-Core")
-      case p : WorldEditPlugin =>
-        worldedit = None
+      case "WorldEdit" =>
         worldEditListener.foreach(HandlerList.unregisterAll)
         worldEditListener = None
         getLogger.info("Disconnected from WorldEdit")

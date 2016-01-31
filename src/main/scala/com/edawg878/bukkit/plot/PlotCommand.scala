@@ -1,6 +1,6 @@
 package com.edawg878.bukkit.plot
 
-import java.time.{Instant, Duration}
+import java.time.{Duration, Instant}
 import java.util.UUID
 
 import com.edawg878.bukkit.plot.Plot._
@@ -11,7 +11,6 @@ import com.edawg878.common.Conversions._
 import com.edawg878.common.Readers.Bukkit.BukkitReaders
 import com.edawg878.common.Server.Server
 import com.edawg878.common.{CommandMeta, PlayerRepository, PlotRepository}
-import com.edawg878.core.Core
 import org.bukkit.ChatColor._
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
@@ -19,7 +18,7 @@ import org.bukkit.entity.Player
 import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
-import scala.util.Try
+import scala.util.{Success, Failure, Try}
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
@@ -52,9 +51,32 @@ object PlotCommand {
     def pid: UUID = player.getUniqueId
   }
 
-  class PlotCommand(val resolver: PlotWorldResolver, playerDb: PlayerRepository, plotDb: PlotRepository, val server: Server, val bukkitServer: org.bukkit.Server, plotClearConversation: PlotClearConversation,
-                     edawg878: => Option[Core]) extends BukkitCommand[Config]
-    with PlotHelper with BukkitReaders {
+  trait PlotLimitChecker {
+
+    def getPlotLimit(player: Player): Future[Int]
+
+  }
+
+  class EDawgPlotLimitChecker extends PlotLimitChecker {
+
+    import com.edawg878.core.Core
+
+    def edawg878: Core = Core.getInstance()
+
+    override def getPlotLimit(player: Player): Future[Int] =
+      Future.successful(edawg878.getPlayerManager.getData(player).getPlotLimit)
+  }
+
+  class DefaultPlotLimitChecker(playerDb: PlayerRepository) extends PlotLimitChecker {
+
+    override def getPlotLimit(player: Player): Future[Int] =
+      playerDb.search(player.getUniqueId).map(_.map(_.plotLimit).getOrElse(1))
+  }
+
+  class PlotCommand(val resolver: PlotWorldResolver, playerDb: PlayerRepository, plotDb: PlotRepository,
+                    val server: Server, val bukkitServer: org.bukkit.Server, plotClearConversation: PlotClearConversation,
+                    plotLimitChecker: => PlotLimitChecker)
+    extends BukkitCommand[Config] with PlotHelper with BukkitReaders {
 
     def meta: CommandMeta = CommandMeta(cmd = "plot", perm = None, aliases = "p", "plotme")
 
@@ -150,20 +172,16 @@ object PlotCommand {
         .map(_.map(d => (d.id -> d.name)).toMap)
         .map(_.withDefault(_.toString))
 
-    def getPlotLimit(p: Player): Int =
-      edawg878.map(_.getPlayerManager.getData(p).getPlotLimit).getOrElse(1)
-
-    def canClaimPlot(p: Player, pm: PlotWorld): Boolean = {
-      if (p.hasPermission("plot.admin")) true
+    def canClaimPlot(p: Player, pm: PlotWorld): Future[Boolean] = {
+      if (p.hasPermission("plot.admin")) Future.successful(true)
       else {
         val homes = pm.getHomes(p.getUniqueId).length
-        getPlotLimit(p) > homes
+        plotLimitChecker.getPlotLimit(p).map(_ > homes)
       }
-      //else playerDb.search(p.getUniqueId).map(_.exists(_.plotLimit > pm.getHomes(p.getUniqueId).length))
     }
 
     def parseUniqueId(p: Player, s: String)(fn: UUID => Unit): Unit = {
-      val f = if (s.length > 16) Future(Try(UUID.fromString(s)).toOption)
+      val f = if (s.length > 16) Future.successful(Try(UUID.fromString(s)).toOption)
       else playerDb.search(s).map(_.map(_.id))
       f.map(_.fold(p.sendMessage(err"Player '$s' could not be found"))(fn))
     }
@@ -196,14 +214,19 @@ object PlotCommand {
               val plot = w.getPlot(id)
               val expired = plot.fold(false)(_.isExpired)
               if (plot.isEmpty || expired) {
-                  if (canClaimPlot(p, w)) {
-                    if (expired) server.sync(()=> w.clear(p.getWorld, id))
-                    val plot = w.claim(p, p.getWorld, id)
-                    plotDb.save(plot)
-                    p.sendMessage(info"Claimed plot ($id)")
-                  } else {
-                    p.sendMessage(err"You have reached your maximum number of plots")
-                  }
+                canClaimPlot(p, w).onComplete {
+                  case Success(allowed) =>
+                    if (allowed) {
+                      if (expired) server.sync(() => w.clear(p.getWorld, id))
+                      val plot = w.claim(p, p.getWorld, id)
+                      plotDb.save(plot)
+                      p.sendMessage(info"Claimed plot ($id)")
+                    } else {
+                      p.sendMessage(err"You have reached your plot limit")
+                    }
+                  case Failure(ex) =>
+                    p.sendMessage(err"Error checking plot limit")
+                }
               } else {
                 p.sendMessage(err"This plot has already been claimed")
               }
@@ -379,31 +402,36 @@ object PlotCommand {
         case Auto =>
           asPlayer(sender) { p =>
             inPlotWorld(p) { w =>
-                if (canClaimPlot(p, w) ) {
-                  @tailrec
-                  def auto(n: Int, x: Int, z: Int): (PlotId, Boolean) = {
-                    val id = new PlotId(x, z, w.config.name)
-                    val plot = w.getPlot(id)
-                    val expired = plot.fold(false)(_.isExpired)
-                    if (plot.isEmpty || expired) (id, expired)
-                    else {
-                      if (z < n) auto(n, x, z + 1)
-                      else if (x < n) auto(n, x + 1, -n)
-                      else auto(n + 1, -(n + 1), -(n + 1))
+                canClaimPlot(p, w).onComplete {
+                  case Success(canClaim) =>
+                    if (canClaim) {
+                      @tailrec
+                      def auto(n: Int, x: Int, z: Int): (PlotId, Boolean) = {
+                        val id = new PlotId(x, z, w.config.name)
+                        val plot = w.getPlot(id)
+                        val expired = plot.fold(false)(_.isExpired)
+                        if (plot.isEmpty || expired) (id, expired)
+                        else {
+                          if (z < n) auto(n, x, z + 1)
+                          else if (x < n) auto(n, x + 1, -n)
+                          else auto(n + 1, -(n + 1), -(n + 1))
+                        }
+                      }
+                      auto(0, 0, 0) match {
+                        case (id, expired) =>
+                          if (expired) server.sync(()=> w.clear(p.getWorld, id))
+                          val updated = w.claim(p, p.getWorld, id)
+                          plotDb.save(updated)
+                          server.sync(()=> {
+                            p.teleport(w.getHomeLocation(p.getWorld, id))
+                            p.sendMessage(info"Claimed plot ($id)")
+                          })
+                      }
+                    } else {
+                      p.sendMessage(err"You have reached your plot limit")
                     }
-                  }
-                  auto(0, 0, 0) match {
-                    case (id, expired) =>
-                      if (expired) server.sync(()=> w.clear(p.getWorld, id))
-                      val updated = w.claim(p, p.getWorld, id)
-                      plotDb.save(updated)
-                      server.sync(()=> {
-                          p.teleport(w.getHomeLocation(p.getWorld, id))
-                          p.sendMessage(info"Claimed plot ($id)")
-                        })
-                  }
-                } else {
-                  p.sendMessage(err"You cannot claim anymore plots")
+                  case Failure(ex) =>
+                    p.sendMessage(err"Error checking plot limit")
                 }
             }
           }
