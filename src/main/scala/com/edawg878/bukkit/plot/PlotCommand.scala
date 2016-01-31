@@ -265,7 +265,7 @@ object PlotCommand {
         case Ban =>
           asPlayer(sender) { p =>
             withPlotStatus(p, Owner, _.sendMessage(err"You do not have permission to ban players from the plot")) { (w, plot) =>
-                if (c.player.hasPermission("plot.ban.bypass")) {
+                if (c.player.hasPermission("plot.bypass.ban")) {
                   p.sendMessage(err"${c.player.getName} cannot be banned from the plot")
                 } else if (p.getUniqueId == c.pid) {
                   p.sendMessage(err"You cannot ban yourself from the plot")
@@ -288,7 +288,7 @@ object PlotCommand {
         case Kick =>
           asPlayer(sender) { p =>
             withPlotStatus(p, Trusted, _.sendMessage(err"You do not have permission to kick players from the plot")) { (w, plot) =>
-              if (c.player.hasPermission("plot.kick.bypass")) {
+              if (c.player.hasPermission("plot.bypass.kick")) {
                 p.sendMessage(err"${c.player.getName} cannot be kicked from the plot")
               } else if (p.getUniqueId == c.pid) {
                 p.sendMessage(err"You cannot kick yourself from the plot")

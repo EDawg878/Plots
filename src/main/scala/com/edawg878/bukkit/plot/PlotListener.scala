@@ -253,11 +253,15 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
         pm.getPlot(id) foreach { plot =>
           plot.entryStatus(p) match {
             case Denied =>
-              p.teleport(p.getWorld.getSpawnLocation)
-              p.sendMessage(err"You are banned from this plot")
+              if (!p.hasPermission("plot.bypass.ban")) {
+                p.teleport(p.getWorld.getSpawnLocation)
+                p.sendMessage(err"You are banned from this plot")
+              }
             case Closed =>
-              p.teleport(p.getWorld.getSpawnLocation)
-              p.sendMessage(err"This plot is closed to visitors")
+              if (!p.hasPermission("plot.bypass.closed")) {
+                p.teleport(p.getWorld.getSpawnLocation)
+                p.sendMessage(err"This plot is closed to visitors")
+              }
             case _ =>
           }
         }
@@ -284,10 +288,10 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
           maybePlayer foreach { p =>
             val id = w.getPlotId(ev.getTo)
             w.getPlot(id) foreach { plot =>
-              if (plot.isBanned(p.getUniqueId)) {
+              if (!p.hasPermission("plot.bypass.ban") && plot.isBanned(p.getUniqueId)) {
                 p.sendMessage(err"You cannot teleport to a plot that you are banned from")
                 ev.setCancelled(true)
-              } else if (plot.closed && plot.status(p) < HelperOffline) {
+              } else if (!p.hasPermission("plot.bypass.close") && plot.closed && plot.status(p) < HelperOffline) {
                 p.sendMessage(err"You cannot teleport to a plot that is closed to visitors")
                 ev.setCancelled(true)
               }
@@ -302,13 +306,13 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
     val player = ev.getPlayer
     val spawnId = getPlotId(player.getWorld.getSpawnLocation)
     val id = getPlotId(player.getLocation)
-    if (spawnId.isDefined && spawnId == id) {
+    if (spawnId.isDefined && !player.hasPermission("plot.admin") && spawnId == id) {
       player.sendMessage(err"You cannot drop items at spawn")
-      ev.setCancelled(true)
+      ev.getItemDrop.remove()
     }
   }
 
-  @EventHandler
+  @EventHandler(ignoreCancelled = true)
   def onCommandPreProcess(ev: PlayerCommandPreprocessEvent): Unit = {
     val player = ev.getPlayer
     val args = ev.getMessage.split(" ")

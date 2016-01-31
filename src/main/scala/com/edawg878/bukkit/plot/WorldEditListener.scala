@@ -131,7 +131,7 @@ class WorldEditListener(val resolver: PlotWorldResolver, val server: Server, wor
 
   }
 
-  @EventHandler
+  @EventHandler(ignoreCancelled = true)
   def onPlayerCommandPreprocess(ev: PlayerCommandPreprocessEvent): Unit = {
     val p = ev.getPlayer
     val args = commandManager.commandDetection(ev.getMessage.split(" "))
