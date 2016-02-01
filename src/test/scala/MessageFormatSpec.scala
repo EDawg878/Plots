@@ -1,7 +1,5 @@
 import java.text.MessageFormat
 
-import com.edawg878.common.MessageFormatter._
-
 /**
  * @author EDawg878 <EDawg878@gmail.com>
  */

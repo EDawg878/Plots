@@ -16,6 +16,36 @@
       "wall": "double_step",
       "path": "wood",
       "biome": "plains"
-    }
+    },
+    "preventedItems": [
+      "ink_sack",
+      "flint_and_steel",
+      "minecart",
+      "powered_minecart",
+      "storage_minecart",
+      "boat",
+      "firework",
+      "firework_charge"
+    ],
+    "protectedBlocks": [
+      "trap_door",
+      "chest",
+      "trapped_chest",
+      "furnace",
+      "burning_furnace",
+      "ender_portal_frame",
+      "diode_block_on",
+      "diode_block_off",
+      "jukebox",
+      "note_block",
+      "hopper",
+      "bed",
+      "cauldron",
+      "brewing_stand",
+      "command",
+      "beacon",
+      "flower_pot",
+      "anvil"
+    ]
   }
 ]

@@ -1,22 +1,21 @@
 package com.edawg878.bukkit.plot
 
 import com.edawg878.bukkit.plot.Plot._
-import org.bukkit.plugin.Plugin
-import com.edawg878.common.PlotRepository
+import com.edawg878.common.Color.Formatter
 import com.edawg878.common.Server.Server
 import com.sk89q.worldedit.bukkit.WorldEditPlugin
 import com.sk89q.worldedit.extension.platform.CommandManager
 import com.sk89q.worldedit.function.mask.{Mask, RegionMask}
 import com.sk89q.worldedit.regions.CuboidRegion
 import com.sk89q.worldedit.regions.selector.CuboidRegionSelector
+import com.sk89q.worldedit.{Vector => WorldEditVector, WorldEdit}
 import org.apache.commons.lang.StringUtils
 import org.apache.commons.lang.math.NumberUtils
-import org.bukkit.{Location, ChatColor}
+import org.bukkit.Location
 import org.bukkit.entity.Player
-import org.bukkit.event.{EventHandler, Listener}
 import org.bukkit.event.player.PlayerCommandPreprocessEvent
-import com.edawg878.common.Color.Formatter
-import com.sk89q.worldedit.{Vector => WorldEditVector, WorldEdit}
+import org.bukkit.event.{EventHandler, Listener}
+import org.bukkit.plugin.Plugin
 
 case class WorldEditConfig(maxBlockTypes: Int, bannedCommands: Set[String], selectionCommands: Set[String], limits: Map[String, Int]) {
 
@@ -27,86 +26,52 @@ case class WorldEditConfig(maxBlockTypes: Int, bannedCommands: Set[String], sele
 
 case class WorldEditCommand(player: Player, message: String, label: String, split: Array[String], plot: Plot, world: PlotWorld)
 
-object FilterResult {
-
-  def check(b: Boolean, errorMessage: String): FilterResult = {
-    if (b) success
-    else error(errorMessage)
-  }
-  def error(s: String): FilterResult = FilterResult(false, Some(s))
-  def success: FilterResult = FilterResult(true, None)
-
-}
-case class FilterResult(result: Boolean, message: Option[String])
-
-trait WorldEditFilter {
-
-  def check(c: WorldEditCommand): Either[String, Unit]
-
-}
-
-object WorldEditListener {
-
-  def create(resolver: PlotWorldResolver, server: Server, plugin: Plugin, config: WorldEditConfig) =
-    new WorldEditListener(resolver, server, plugin.asInstanceOf[WorldEditPlugin], config)
-
-}
-
-class WorldEditListener(val resolver: PlotWorldResolver, val server: Server, worldedit: WorldEditPlugin, config: WorldEditConfig)
+class WorldEditListener(val resolver: PlotWorldResolver, val server: Server, plugin: Plugin, config: WorldEditConfig)
   extends Listener with PlotHelper {
 
-  lazy val filters: Seq[WorldEditFilter] = Seq(banFilter, voteFilter, argsFilter, blockTypeFilter, radiusFilter, operationFilter)
+  require(plugin.isInstanceOf[WorldEditPlugin], "plugin must be an instance of WorldEditPlugin")
 
-  val banFilter = new WorldEditFilter {
-    override def check(c: WorldEditCommand): Either[String, Unit] = {
-      WorldEdit.getInstance()
-      if (config.isBanned(c.label)) Left(err"This WorldEdit command is banned")
+  val worldedit: WorldEditPlugin = plugin.asInstanceOf[WorldEditPlugin]
+
+  type FilterResult = Either[String, Unit]
+
+  lazy val filters: Seq[WorldEditCommand => FilterResult] =
+    Seq(banFilter, voteFilter, argsFilter, blockTypeFilter, radiusFilter, operationFilter)
+
+  def banFilter(c: WorldEditCommand): FilterResult = {
+    WorldEdit.getInstance()
+    if (config.isBanned(c.label)) Left(err"This WorldEdit command is banned")
+    else Right()
+  }
+
+  def voteFilter(c: WorldEditCommand): FilterResult = {
+    if (hasVoted(c.player)) Right()
+    else Left(info"You need to vote 3 times before unlocking WorldEdit")
+  }
+
+  def argsFilter(c: WorldEditCommand): FilterResult = {
+    val session = worldedit.getSession(c.player)
+    val limit = session.getBlockChangeLimit
+    if (limit < 0 || c.split.flatMap(parseAbsDouble).forall(_ <= limit)) Right()
+    else Left(err"You are not allowed to input numbers greater than $limit")
+  }
+
+  def blockTypeFilter(c: WorldEditCommand): FilterResult = {
+    val limit = config.maxBlockTypes
+    if (StringUtils.countMatches(c.message, ",") <= limit ||
+      c.player.hasPermission("plot.admin")) Right()
+    else
+      Left(err"You may only use $limit block ${if (limit == 1) "type" else "types"} per operation")
+  }
+
+  def radiusFilter(c: WorldEditCommand): FilterResult = {
+    config.limits.get(c.label).map(limit =>
+      if (c.split.flatMap(parseAbsDouble).forall(_ > limit)) Left(err"You have exceeded the maximum radius of $limit")
       else Right()
-    }
+    ) getOrElse(Right())
   }
 
-  val voteFilter = new WorldEditFilter {
-    override def check(c: WorldEditCommand): Either[String, Unit] = {
-      if (hasVoted(c.player)) Right()
-      else Left(info"You need to vote 3 times before unlocking WorldEdit")
-    }
-  }
-
-  val argsFilter = new WorldEditFilter {
-
-    override def check(c: WorldEditCommand): Either[String, Unit] = {
-      val session = worldedit.getSession(c.player)
-      val limit = session.getBlockChangeLimit
-      if (limit < 0 || c.split.flatMap(parseAbsDouble).forall(_ <= limit)) Right()
-      else Left(err"You are not allowed to input numbers greater than $limit")
-    }
-  }
-
-  val blockTypeFilter = new WorldEditFilter {
-
-    override def check(c: WorldEditCommand): Either[String, Unit] = {
-      val limit = config.maxBlockTypes
-      if (StringUtils.countMatches(c.message, ",") <= limit ||
-        c.player.hasPermission("plot.admin")) Right()
-      else
-        Left(err"You may only use $limit block ${if (limit == 1) "type" else "types"} per operation")
-    }
-
-  }
-
-  val radiusFilter = new WorldEditFilter {
-
-    override def check(c: WorldEditCommand): Either[String, Unit] =
-      config.limits.get(c.label).map(limit =>
-        if (c.split.flatMap(parseAbsDouble).forall(_ > limit)) Left(err"You have exceeded the maximum radius of $limit")
-        else Right()
-      ) getOrElse(Right())
-
-  }
-
-  val operationFilter = new WorldEditFilter {
-
-    override def check(c: WorldEditCommand): Either[String, Unit] = {
+  def operationFilter(c: WorldEditCommand): FilterResult = {
       Option(worldedit.getSelection(c.player)).map { selection =>
         val selector = selection.getRegionSelector
         if (selector.isInstanceOf[CuboidRegionSelector]) {
@@ -136,8 +101,6 @@ class WorldEditListener(val resolver: PlotWorldResolver, val server: Server, wor
           Left(err"Only cuboid regions are supported")
         }
       } getOrElse(Right())
-    }
-
   }
 
   @EventHandler(ignoreCancelled = true)
@@ -152,7 +115,7 @@ class WorldEditListener(val resolver: PlotWorldResolver, val server: Server, wor
       }) { (plotWorld, plot) =>
             val command = WorldEditCommand(p, ev.getMessage, label, args, plot, plotWorld)
             val cancel = filters.exists { f =>
-              val res = f.check(command)
+              val res = f(command)
               res.left.foreach(p.sendMessage)
               res.isLeft
             }

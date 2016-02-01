@@ -3,7 +3,7 @@ package com.edawg878.common
 import java.util.UUID
 
 import com.edawg878.bukkit.plot.PlotClearConversation.PlotClearConversation
-import com.edawg878.bukkit.plot.PlotCommand.{PlotLimitChecker, DefaultPlotLimitChecker, PlotCommand}
+import com.edawg878.bukkit.plot.PlotCommand.{DefaultPlotLimitChecker, PlotCommand, PlotLimitChecker}
 import com.edawg878.bukkit.plot._
 import com.edawg878.common.Server._
 import org.bukkit.World

@@ -2,21 +2,22 @@ package com.edawg878.bukkit
 
 import java.util
 
-import com.edawg878.bukkit.plot.PlotCommand.{EDawgPlotLimitChecker, DefaultPlotLimitChecker}
-import com.edawg878.bukkit.plot.{WorldEditListener, PlotGenerator}
+import com.edawg878.bukkit.plot.Plot.Trusted
+import com.edawg878.bukkit.plot.PlotCommand.{DefaultPlotLimitChecker, EDawgPlotLimitChecker}
+import com.edawg878.bukkit.plot.{PlotGenerator, WorldEditListener}
 import com.edawg878.common.Modules.BukkitModule
 import com.edawg878.common.{Command, PlayerData}
 import org.bukkit.command.{CommandExecutor, CommandSender}
 import org.bukkit.event.player.{PlayerJoinEvent, PlayerQuitEvent}
 import org.bukkit.event.server.{PluginDisableEvent, PluginEnableEvent}
 import org.bukkit.event.world.WorldLoadEvent
-import org.bukkit.event.{HandlerList, EventHandler, Listener}
+import org.bukkit.event.{EventHandler, HandlerList, Listener}
 import org.bukkit.generator.ChunkGenerator
 import org.bukkit.plugin.java.JavaPlugin
 
+import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.collection.JavaConversions._
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
@@ -48,7 +49,7 @@ class BukkitMain extends JavaPlugin with Listener {
 
   def isTrusted(p: org.bukkit.entity.Player): java.lang.Boolean = {
     val resolver = bukkitPlotWorldResolver
-    if (resolver(p.getWorld).flatMap(w => w.getPlot(w.getPlotId(p.getLocation))).exists(_.isTrusted(p.getUniqueId)))
+    if (resolver(p.getWorld).flatMap(w => w.getPlot(w.getPlotId(p.getLocation))).exists(_.status(p) >= Trusted))
       java.lang.Boolean.TRUE
     else
       java.lang.Boolean.FALSE
@@ -95,7 +96,7 @@ class BukkitMain extends JavaPlugin with Listener {
         plotLimitChecker = new EDawgPlotLimitChecker
         getLogger.info("Connected to EDawg878-Core")
       case "WorldEdit" =>
-        val listener = WorldEditListener.create(bukkitPlotWorldResolver, server, plugin, worldEditConfig)
+        val listener = new WorldEditListener(bukkitPlotWorldResolver, server, plugin, worldEditConfig)
         worldEditListener = Some(listener)
         registerListener(listener)
         getLogger.info("Connected to WorldEdit")

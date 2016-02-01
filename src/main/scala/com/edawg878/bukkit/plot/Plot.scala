@@ -5,7 +5,6 @@ import java.time.temporal.TemporalAmount
 import java.time.{Instant, LocalDate}
 import java.util.{Random, UUID}
 
-import com.edawg878.bukkit.BukkitConversions._
 import com.edawg878.bukkit.plot.Plot._
 import com.edawg878.common.Color.Formatter
 import com.edawg878.common.PlotRepository
@@ -42,7 +41,9 @@ case class PlotWorldConfig(name: String,
                      pathHeight: Int = 65,
                      pathWidth: Int = 3,
                      buildOnFloor: Boolean = false,
-                     style: PlotStyle = PlotStyle()) {
+                     style: PlotStyle = PlotStyle(),
+                     preventedItems: Set[Material] = Set(),
+                     protectedBlocks: Set[Material] = Set()) {
 
   val Center = Position(0, 0, 0)
   val CenterId = PlotId.fromPosition(this, Center)
@@ -429,8 +430,14 @@ trait PlotHelper {
 
   def isPlotWorld(loc: Location): Boolean = isPlotWorld(loc.getWorld)
 
+  def inPlotWorld(w: World)(f: PlotWorld => Unit): Unit =
+    resolver(w).foreach(f)
+
   def inPlotWorld(p: Player)(f: PlotWorld => Unit): Unit =
     resolver(p.getWorld).fold(p.sendMessage(err"You must be in a plot world to execute this command"))(f)
+
+  def inPlot(loc: Location)(f: (PlotWorld, Plot) => Unit): Unit =
+    inPlotWorld(loc.getWorld)(w => w.getPlot(w.getPlotId(loc)).foreach(f(w, _)))
 
   def inPlot(p: Player, loc: Location)(f: (PlotWorld, Plot) => Unit): Unit =
     inPlotWorld(p)(w => w.getPlot(w.getPlotId(loc)).fold(p.sendMessage(err"No plot found"))(plot => (w, plot)))
@@ -458,7 +465,7 @@ trait PlotHelper {
       else if (p.hasPermission("plot.admin")) Right()
       else {
         w.getPlot(w.getPlotId(loc)) map { plot =>
-          if (!plot.roadAccess && w.config.isRoad(loc)) Left(err"You cannot build here")
+          if (!plot.roadAccess && w.config.isRoad(loc)) Left(s)
           else {
             val pid = p.getUniqueId
             st match {
@@ -482,7 +489,7 @@ trait PlotHelper {
                 Left(s)
             }
           }
-        } getOrElse(Left(err"You cannot build here"))
+        } getOrElse(Left(s))
       }
     } getOrElse(Left(s))
   }

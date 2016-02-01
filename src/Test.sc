@@ -1,8 +1,8 @@
-def f(pf: PartialFunction[Any, Int]): Option[Int] = {
-  pf.lift(1)
+def f(a: Boolean, b: => Boolean): Unit = {
+  if (!a) println("avoided")
 }
-
-f {
-  case i: Int => i
-  case s: String => s.toInt
+def c: Boolean = {
+  println("EXPENSIVE FUNCITON!!!@#!@#!@#")
+  false
 }
+f(false, c)

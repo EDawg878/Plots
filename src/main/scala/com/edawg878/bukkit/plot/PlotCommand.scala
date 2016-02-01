@@ -18,7 +18,7 @@ import org.bukkit.entity.Player
 import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
-import scala.util.{Success, Failure, Try}
+import scala.util.{Failure, Success, Try}
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
