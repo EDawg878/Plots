@@ -8,7 +8,7 @@ import com.sk89q.worldedit.extension.platform.CommandManager
 import com.sk89q.worldedit.function.mask.{Mask, RegionMask}
 import com.sk89q.worldedit.regions.CuboidRegion
 import com.sk89q.worldedit.regions.selector.CuboidRegionSelector
-import com.sk89q.worldedit.{Vector => WorldEditVector, WorldEdit}
+import com.sk89q.worldedit.{Vector => WorldEditVector}
 import org.apache.commons.lang.StringUtils
 import org.apache.commons.lang.math.NumberUtils
 import org.bukkit.Location
@@ -39,7 +39,6 @@ class WorldEditListener(val resolver: PlotWorldResolver, val server: Server, plu
     Seq(banFilter, voteFilter, argsFilter, blockTypeFilter, radiusFilter, operationFilter)
 
   def banFilter(c: WorldEditCommand): FilterResult = {
-    WorldEdit.getInstance()
     if (config.isBanned(c.label)) Left(err"This WorldEdit command is banned")
     else Right()
   }

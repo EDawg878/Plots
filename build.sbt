@@ -28,7 +28,7 @@ unmanagedJars in Compile ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  "org.spigotmc" % "spigot-api" % "1.8-R0.1-SNAPSHOT",
+  "org.spigotmc" % "spigot-api" % "1.8.8-R0.1-SNAPSHOT",
   "com.sk89q" % "worldedit" % "6.0.0-SNAPSHOT",
   "org.scalatest" % "scalatest_2.11" % "2.2.1" % "test",
   "org.reactivemongo" %% "play2-reactivemongo" % "0.10.5.0.akka23",

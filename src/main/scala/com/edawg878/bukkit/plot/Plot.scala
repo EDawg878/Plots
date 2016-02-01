@@ -15,7 +15,7 @@ import org.bukkit.block.Biome
 import org.bukkit.block.Biome._
 import org.bukkit.entity.Player
 import org.bukkit.generator.ChunkGenerator
-import org.bukkit.generator.ChunkGenerator.BiomeGrid
+import org.bukkit.generator.ChunkGenerator.{ChunkData, BiomeGrid}
 
 import scala.collection.concurrent.TrieMap
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -252,17 +252,6 @@ object Plot {
   case object Denied extends EntryStatus
   case object Closed extends EntryStatus
 
-  /*
-  object Result {
-    def apply(b: Boolean) = if (b) True else False
-  }
-
-  sealed trait Result
-  case object Error extends Result
-  case object True extends Result
-  case object False extends Result
-  */
-
   def newExpiration: LocalDate = LocalDate.now.plusDays(30)
 
   def apply(owner: UUID, id: PlotId): Plot = new Plot(
@@ -498,48 +487,42 @@ trait PlotHelper {
 
 class PlotGenerator(c: PlotWorldConfig) extends ChunkGenerator {
 
-  override def generateExtBlockSections(bw: World, random: Random, cx: Int, cz: Int, biomes: BiomeGrid): Array[Array[Short]] = {
-
-    val result = new Array[Array[Short]](bw.getMaxHeight >> 4)
+  override def generateChunkData(world: World, random: Random, cx: Int, cz: Int, biomes: BiomeGrid): ChunkData = {
+    val chunks = createChunkData(world)
 
     for {
       x <- 0 until 16
       locX = (cx << 4) + x
       z <- 0 until 16
       locZ = (cz << 4) + z
-    } yield setBlocks(x, z, locX, locZ)
+    } yield setBlocks(chunks, x, z, locX, locZ, biomes)
 
-    def setBlocks(x: Int, z: Int, locX: Int, locZ: Int): Unit = {
-      Option(biomes).foreach(_.setBiome(x, z, c.style.biome))
-
-      val path = c.isPath(locX, locZ)
-      val border = c.isBorder(locX, locZ)
-
-      if (path) {
-        setBlock(result, x, c.pathHeight, z, c.style.path)
-      } else if (border) {
-        setBlock(result, x, c.borderHeight, z, c.style.border)
-      } else {
-        setBlock(result, x, c.topHeight, z, c.style.top)
-      }
-
-      setBlock(result, x, 0, z, c.style.bottom)
-
-      for (y <- 1 until c.MaxY) {
-        if (border && !path && y < c.borderHeight) {
-          setBlock(result, x, y, z, c.style.wall)
-        } else if (path || y < c.topHeight) {
-          setBlock(result, x, y, z, c.style.filling)
-        }
-      }
-    }
-
-    result
+    chunks
   }
 
-  def setBlock(result: Array[Array[Short]], x: Int, y: Int, z: Int, m: Material): Unit = {
-    if (result(y >> 4) == null) result(y >> 4) = new Array[Short](4096)
-    result(y >> 4)(((y & 0xF) << 8) | (z << 4) | x) = m.getId.toShort
+  def setBlocks(chunks: ChunkData, x: Int, z: Int, locX: Int, locZ: Int, biomes: BiomeGrid): Unit = {
+    Option(biomes).foreach(_.setBiome(x, z, c.style.biome))
+
+    val path = c.isPath(locX, locZ)
+    val border = c.isBorder(locX, locZ)
+
+    if (path) {
+      chunks.setBlock(x, c.pathHeight, z, c.style.path)
+    } else if (border) {
+      chunks.setBlock(x, c.borderHeight, z, c.style.border)
+    } else {
+      chunks.setBlock(x, c.topHeight, z, c.style.top)
+    }
+
+    chunks.setBlock(x, 0, z, c.style.bottom)
+
+    for (y <- 1 until c.MaxY) {
+      if (border && y < c.borderHeight) {
+        chunks.setBlock(x, y, z, c.style.wall)
+      } else if (path || y < c.topHeight) {
+        chunks.setBlock(x, y, z, c.style.filling)
+      }
+    }
   }
 
 }
