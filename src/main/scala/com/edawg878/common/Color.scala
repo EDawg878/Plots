@@ -1,11 +1,11 @@
 package com.edawg878.common
 
-import net.md_5.bungee.api.ChatColor._
-
 /**
  * @author EDawg878 <EDawg878@gmail.com>
  */
 object Color {
+
+  import org.bukkit.ChatColor._
 
   val Error = RED
   val Primary = GOLD

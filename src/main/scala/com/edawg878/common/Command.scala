@@ -4,6 +4,7 @@ import com.edawg878.common.Readers.PlayerDataReader
 import org.bukkit.entity.Player
 import scopt.ConsoleHandler.ConsoleHandler
 import scopt.CustomOptionParser
+import com.edawg878.common.Color.Formatter
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future

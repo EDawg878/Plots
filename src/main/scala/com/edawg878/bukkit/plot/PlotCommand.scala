@@ -196,7 +196,7 @@ object PlotCommand {
                 names(plot.ids).foreach { nm =>
                   p.sendMessage(info"Plot ID: $id")
                   p.sendMessage(info"Owner: ${nm.getOrElse(plot.owner, plot.owner.toString)}")
-                  p.sendMessage(info"Expiration: ${plot.ExpirationFormatter.format(plot.expirationDate)}")
+                  p.sendMessage(info"Expiration: ${if (plot.protect) GREEN + "protected" else RED + plot.ExpirationFormatter.format(plot.expirationDate)}")
                   p.sendMessage(info"Status: ${if (plot.closed) RED + "closed" else GREEN + "open"}")
                   p.sendMessage(info"Road Access ${if (plot.roadAccess) GREEN + "enabled" else RED + "disabled"}")
                   p.sendMessage(info"Protected: ${if (plot.protect) GREEN + "yes" else RED + "no"}")
@@ -334,14 +334,21 @@ object PlotCommand {
         case Remove =>
           asPlayer(sender) { p =>
             withPlotStatus(p, Owner, _.sendMessage(err"You do not have permission to remove players from the plot")) { (w, plot) =>
-              parseUniqueId(p, c.target) { pid =>
-                if (plot.isAdded(pid)) {
-                  val removed = plot.copy(helpers = plot.helpers - pid, trusted = plot.trusted - pid)
-                  w.update(removed)
-                  plotDb.save(removed)
-                  p.sendMessage(info"Removed ${c.target} from the plot")
-                } else {
-                  p.sendMessage(err"${c.target} is not added to the plot")
+              if (c.target == "all") {
+                val removed = plot.copy(helpers = Set(), trusted = Set())
+                w.update(removed)
+                plotDb.save(removed)
+                p.sendMessage(info"Removed all players from plot")
+              } else {
+                parseUniqueId(p, c.target) { pid =>
+                  if (plot.isAdded(pid)) {
+                    val removed = plot.copy(helpers = plot.helpers - pid, trusted = plot.trusted - pid)
+                    w.update(removed)
+                    plotDb.save(removed)
+                    p.sendMessage(info"Removed ${c.target} from the plot")
+                  } else {
+                    p.sendMessage(err"${c.target} is not added to the plot")
+                  }
                 }
               }
             }
@@ -349,14 +356,21 @@ object PlotCommand {
         case Unban =>
           asPlayer(sender) { p =>
             withPlotStatus(p, Owner, _.sendMessage(err"You do not have permission to unban players from the plot")) { (w, plot) =>
-              parseUniqueId(p, c.target) { pid =>
-                if (plot.isBanned(pid)) {
-                  val removed = plot.copy(banned = plot.banned - pid)
-                  w.update(removed)
-                  plotDb.save(removed)
-                  p.sendMessage(info"Unbanned ${c.target} from the plot")
-                } else {
-                  p.sendMessage(err"${c.target} is not banned from the plot")
+              if (c.target == "all") {
+                val removed = plot.copy(banned = Set())
+                w.update(removed)
+                plotDb.save(removed)
+                p.sendMessage(info"Unbanned all players from the plot")
+              } else {
+                parseUniqueId(p, c.target) { pid =>
+                  if (plot.isBanned(pid)) {
+                    val removed = plot.copy(banned = plot.banned - pid)
+                    w.update(removed)
+                    plotDb.save(removed)
+                    p.sendMessage(info"Unbanned ${c.target} from the plot")
+                  } else {
+                    p.sendMessage(err"${c.target} is not banned from the plot")
+                  }
                 }
               }
             }
