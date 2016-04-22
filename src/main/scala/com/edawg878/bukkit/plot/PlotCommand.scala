@@ -20,6 +20,9 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.util.{Failure, Success, Try}
 
+import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
+
 /**
  * @author EDawg878 <EDawg878@gmail.com>
  */

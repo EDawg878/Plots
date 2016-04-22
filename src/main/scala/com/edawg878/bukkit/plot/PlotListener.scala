@@ -7,21 +7,23 @@ import com.edawg878.common.Server.Server
 import org.bukkit.Difficulty._
 import org.bukkit._
 import org.bukkit.block.Block
+import org.bukkit.enchantments.Enchantment
 import org.bukkit.entity.EntityType._
 import org.bukkit.entity._
 import org.bukkit.event.EventPriority._
 import org.bukkit.event._
 import org.bukkit.event.block.Action._
 import org.bukkit.event.block._
+import org.bukkit.event.enchantment.EnchantItemEvent
 import org.bukkit.event.entity.{EntityChangeBlockEvent, EntityDamageByEntityEvent, EntityExplodeEvent}
 import org.bukkit.event.hanging.{HangingBreakByEntityEvent, HangingPlaceEvent}
+import org.bukkit.event.inventory.PrepareAnvilEvent
 import org.bukkit.event.player._
 import org.bukkit.event.vehicle.VehicleDestroyEvent
 import org.bukkit.event.world.{StructureGrowEvent, WorldLoadEvent}
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
-import scala.util.Try
 
 /**
  * @author EDawg878 <EDawg878@gmail.com>
@@ -121,8 +123,12 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
   def onEntityBlockForm(ev: EntityBlockFormEvent): Unit = {
-    if (isPlotWorld(ev.getBlock.getLocation) && !ev.getEntity.isInstanceOf[Player])
-      ev.setCancelled(true)
+    ev.getEntity match {
+      case p: Player =>
+        cancelLeft(ev, test(p, ev.getBlock.getLocation))
+      case _ =>
+        ev.setCancelled(true)
+    }
   }
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
