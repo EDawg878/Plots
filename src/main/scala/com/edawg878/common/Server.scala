@@ -89,6 +89,9 @@ object Server {
     implicit val worldEditConfigFormat =
       Json.format[WorldEditConfig]
 
+    implicit val databaseConfigFormat =
+      Json.format[DatabaseConfig]
+
     implicit val entityTypeFormat: Reads[EntityType] = __.read[String].map(EntityType.fromName)
 
     /*

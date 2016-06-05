@@ -23,7 +23,7 @@ resolvers += "sk89q-repo" at "http://maven.sk89q.com/repo/"
 resolvers += Resolver.sonatypeRepo("public")
 
 unmanagedJars in Compile ++= Seq(
-  file("lib_unmanaged/scopt_2.11-3.3.0.jar"),
+  file("lib_unmanaged/custom-scopt.jar"),
   file("lib_unmanaged/EDawg878-Core-1.0.jar")
 )
 

@@ -19,6 +19,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
+case class DatabaseConfig(database: String, address: String, playerCollection: String, plotCollection: String)
 
 class PlayerNotFound(name: String) extends RuntimeException(s"Player '$name' was not found in the database")
 
@@ -263,10 +264,10 @@ trait MongoRepository {
 
 }
 
-class MongoPlayerRepository(val mongo: DB, val logger: Logger) extends MongoRepository
+class MongoPlayerRepository(val mongo: DB, val logger: Logger, name: String) extends MongoRepository
   with PlayerRepository with BSONHandlers {
 
-  val col = mongo.collection[BSONCollection]("players")
+  val col = mongo.collection[BSONCollection](name)
 
   def queryById(id: UUID): BSONDocument = BSONDocument("_id" -> id)
 
@@ -290,10 +291,10 @@ class MongoPlayerRepository(val mongo: DB, val logger: Logger) extends MongoRepo
 
 }
 
-class MongoPlotRepository(val mongo: DB, val logger: Logger) extends MongoRepository
+class MongoPlotRepository(val mongo: DB, val logger: Logger, name: String) extends MongoRepository
   with PlotRepository with BSONHandlers {
 
-  val col = mongo.collection[BSONCollection]("plots")
+  val col = mongo.collection[BSONCollection](name)
 
   override def ensureIndexes(): Unit = {}
 

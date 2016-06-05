@@ -21,24 +21,28 @@ import scala.concurrent.{Await, Future}
  */
 object Modules {
 
-  trait CommonModule {
+  trait CommonModule extends CustomReads {
     val logger = plugin.logger
+    val databaseConfig = {
+      val config = new Configuration[DatabaseConfig](plugin, "database.json")
+      config.saveDefault()
+      config.parse
+    }
     val driver = new MongoDriver
-    val conn = driver.connection(List("localhost"))
-    val mongo = conn.db("minecraft")
-    val playerDb = new MongoPlayerRepository(mongo, logger)
-    val plotDb = new MongoPlotRepository(mongo, logger)
+    val conn = driver.connection(List(databaseConfig.address))
+    val mongo = conn.db(databaseConfig.database)
+    val playerDb = new MongoPlayerRepository(mongo, logger, databaseConfig.playerCollection)
+    val plotDb = new MongoPlotRepository(mongo, logger, databaseConfig.plotCollection)
     val databases = Seq[MongoRepository](playerDb, plotDb)
 
     def plugin: Plugin
     def server: Server
   }
 
-  trait BukkitModule extends CommonModule with CustomReads {
+  trait BukkitModule extends CommonModule {
 
     import com.edawg878.bukkit.BukkitConversions._
 
-    val configFile = plugin.dataFolder.resolve("vehicles.json")
     val plotWorldConfig = {
       val config = new Configuration[Seq[PlotWorldConfig]](plugin, "worlds.json")
       config.saveDefault()

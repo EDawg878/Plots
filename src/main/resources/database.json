@@ -1,0 +1,6 @@
+{
+  "database": "minecraft",
+  "address": "localhost",
+  "playerCollection": "players",
+  "plotCollection": "plots"
+}
