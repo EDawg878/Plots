@@ -12,6 +12,8 @@ nbactions.xml
 target/
 dependency-reduced-pom.xml
 
-# test servers
-server/
-*.jar
+#sbt
+lib_managed/
+
+# mac
+.DS_Store
