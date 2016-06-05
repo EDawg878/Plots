@@ -57,8 +57,7 @@ class WorldEditListener(val resolver: PlotWorldResolver, val server: Server, plu
 
   def blockTypeFilter(c: WorldEditCommand): FilterResult = {
     val limit = config.maxBlockTypes
-    if (StringUtils.countMatches(c.message, ",") <= limit ||
-      c.player.hasPermission("plot.admin")) Right()
+    if (StringUtils.countMatches(c.message, ",") <= limit) Right()
     else
       Left(err"You may only use $limit block ${if (limit == 1) "type" else "types"} per operation")
   }
@@ -67,7 +66,7 @@ class WorldEditListener(val resolver: PlotWorldResolver, val server: Server, plu
     config.limits.get(c.label).map(limit =>
       if (c.split.flatMap(parseAbsDouble).forall(_ > limit)) Left(err"You have exceeded the maximum radius of $limit")
       else Right()
-    ) getOrElse(Right())
+    ) getOrElse Right()
   }
 
   def operationFilter(c: WorldEditCommand): FilterResult = {
@@ -106,7 +105,7 @@ class WorldEditListener(val resolver: PlotWorldResolver, val server: Server, plu
   def onPlayerCommandPreprocess(ev: PlayerCommandPreprocessEvent): Unit = {
     val p = ev.getPlayer
     val args = commandManager.commandDetection(ev.getMessage.split(" "))
-    if (isWorldEditCommand(args(0))) {
+    if (!p.hasPermission("plot.admin") && isWorldEditCommand(args(0))) {
       val label = args(0).replace("/", "").toLowerCase
       withPlotStatus(p, Trusted, p => {
         p.sendMessage(err"You must be trusted to this plot in order to use WorldEdit here")

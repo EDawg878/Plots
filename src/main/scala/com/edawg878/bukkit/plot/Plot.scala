@@ -399,13 +399,13 @@ case class PlotWorld(config: PlotWorldConfig, plots: TrieMap[PlotId, Plot]) {
   def isClaimed(id: PlotId): Boolean = plots.contains(id)
 
   def clear(bw: World, id: PlotId): Unit = {
-    require(Bukkit.isPrimaryThread, "plots must be cleared from the main thread")
-    val r = id.chunkRegion(config)
-    for (cx <- r.minX to r.maxX) {
-      for (cz <- r.minZ to r.maxZ) {
-        bw.regenerateChunk(cx, cz)
-      }
-    }
+//    require(Bukkit.isPrimaryThread, "plots must be cleared from the main thread")
+//    val r = id.chunkRegion(config)
+//    for (cx <- r.minX to r.maxX) {
+//      for (cz <- r.minZ to r.maxZ) {
+//        bw.regenerateChunk(cx, cz)
+//      }
+//    }
   }
 
 }
