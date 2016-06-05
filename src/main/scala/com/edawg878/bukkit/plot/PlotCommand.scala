@@ -436,7 +436,8 @@ object PlotCommand {
                       }
                       auto(0, 0, 0) match {
                         case (id, expired) =>
-                          if (expired) server.sync(()=> w.clear(p.getWorld, id))
+                          // NOTE: Too laggy so automatic clearing has been disabled
+                          //if (expired) server.sync(()=> w.clear(p.getWorld, id))
                           val updated = w.claim(p, p.getWorld, id)
                           plotDb.save(updated)
                           server.sync(()=> {
@@ -457,7 +458,7 @@ object PlotCommand {
             withPlotStatus(p, Owner, _.sendMessage(err"You do not have permission to clear the plot")) { (w, plot) =>
               if (plot.protect) {
                 p.sendMessage(err"You cannot clear a protected plot")
-              } else if (p.hasPermission("plot.admin") || plot.canClear(Duration.ofHours(1))) {
+              } else if (p.hasPermission("plot.admin") || plot.canClear(Duration.ofHours(24))) {
                 //plotClearConversation.begin(p, plot.id)
                 val id = plot.id
                 w.clear(p.getWorld, id)
