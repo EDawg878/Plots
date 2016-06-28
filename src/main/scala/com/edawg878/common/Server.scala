@@ -45,9 +45,7 @@ object Server {
 
     def this(p: Plugin, s: String) = this(p, p.resolveFile(s))
 
-    def bytes = Files.readAllBytes(path)
-
-    def parse: T = Json.parse(bytes).as[T]
+    def parse: T = Json.parse(Files.readAllBytes(path)).as[T]
 
     def saveDefault(): Unit = {
       if (Files.notExists(path)) {

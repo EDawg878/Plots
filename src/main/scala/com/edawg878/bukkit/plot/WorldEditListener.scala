@@ -20,6 +20,7 @@ import org.bukkit.plugin.Plugin
 case class WorldEditConfig(maxBlockTypes: Int, bannedCommands: Set[String], selectionCommands: Set[String], limits: Map[String, Int]) {
 
   def isBanned(s: String): Boolean = bannedCommands.contains(s.toLowerCase)
+
   def isSelection(s: String): Boolean = selectionCommands.contains(s.toLowerCase)
 
 }
@@ -70,35 +71,35 @@ class WorldEditListener(val resolver: PlotWorldResolver, val server: Server, plu
   }
 
   def operationFilter(c: WorldEditCommand): FilterResult = {
-      Option(worldedit.getSelection(c.player)).map { selection =>
-        val selector = selection.getRegionSelector
-        if (selector.isInstanceOf[CuboidRegionSelector]) {
-          if (!selector.isDefined) Right()
-          else {
-            val id = c.plot.id
-            val plotConfig = c.world.config
-            val roadAccess = c.plot.roadAccess
-            val min = selection.getMinimumPoint
-            val max = selection.getMaximumPoint
-            def insidePlot(loc: Location) = {
-              val r = if (roadAccess) plotConfig.outer(id) else plotConfig.inner(id)
-              r.isInside(loc)
-            }
-            if (insidePlot(min) && insidePlot(max)) {
-              val session = worldedit.getSession(c.player)
-              val limit = session.getBlockChangeLimit
-              if (limit < 0 || selection.getArea <= limit) Right()
-              else Left(err"You have exceeded the maximum radius $limit for this command")
-            } else {
-              selector.clear()
-              Left(err"Your WorldEdit selection extended outside of the plot")
-            }
+    Option(worldedit.getSelection(c.player)).map { selection =>
+      val selector = selection.getRegionSelector
+      if (selector.isInstanceOf[CuboidRegionSelector]) {
+        if (!selector.isDefined) Right()
+        else {
+          val id = c.plot.id
+          val plotConfig = c.world.config
+          val roadAccess = c.plot.roadAccess
+          val min = selection.getMinimumPoint
+          val max = selection.getMaximumPoint
+          def insidePlot(loc: Location) = {
+            val r = if (roadAccess) plotConfig.outer(id) else plotConfig.inner(id)
+            r.isInside(loc)
           }
-        } else {
-          selector.clear()
-          Left(err"Only cuboid regions are supported")
+          if (insidePlot(min) && insidePlot(max)) {
+            val session = worldedit.getSession(c.player)
+            val limit = session.getBlockChangeLimit
+            if (limit < 0 || selection.getArea <= limit) Right()
+            else Left(err"You have exceeded the maximum radius $limit for this command")
+          } else {
+            selector.clear()
+            Left(err"Your WorldEdit selection extended outside of the plot")
+          }
         }
-      } getOrElse(Right())
+      } else {
+        selector.clear()
+        Left(err"Only cuboid regions are supported")
+      }
+    } getOrElse (Right())
   }
 
   @EventHandler(ignoreCancelled = true)
@@ -107,19 +108,19 @@ class WorldEditListener(val resolver: PlotWorldResolver, val server: Server, plu
     val args = commandManager.commandDetection(ev.getMessage.split(" "))
     if (!p.hasPermission("plot.admin") && isWorldEditCommand(args(0))) {
       val label = args(0).replace("/", "").toLowerCase
-      withPlotStatus(p, Trusted, p => {
+      withPlotStatusOrErr(p, Trusted).fold {
         p.sendMessage(err"You must be trusted to this plot in order to use WorldEdit here")
         ev.setCancelled(true)
-      }) { (plotWorld, plot) =>
-            val command = WorldEditCommand(p, ev.getMessage, label, args, plot, plotWorld)
-            val cancel = filters.exists { f =>
-              val res = f(command)
-              res.left.foreach(p.sendMessage)
-              res.isLeft
-            }
-            if (cancel) ev.setCancelled(true)
-            else setMask(p, plot, plotWorld)
+      } { case (plotWorld, plot) =>
+        val command = WorldEditCommand(p, ev.getMessage, label, args, plot, plotWorld)
+        val cancel = filters.exists { f =>
+          val res = f(command)
+          res.left.foreach(p.sendMessage)
+          res.isLeft
         }
+        if (cancel) ev.setCancelled(true)
+        else setMask(p, plot, plotWorld)
+      }
     }
   }
 

@@ -419,27 +419,35 @@ trait PlotHelper {
 
   def isPlotWorld(loc: Location): Boolean = isPlotWorld(loc.getWorld)
 
-  def inPlotWorld(w: World)(f: PlotWorld => Unit): Unit =
-    resolver(w).foreach(f)
+  def inPlotWorld(w: World): Option[PlotWorld] =
+    resolver(w)
 
-  def inPlotWorld(p: Player)(f: PlotWorld => Unit): Unit =
-    resolver(p.getWorld).fold(p.sendMessage(err"You must be in a plot world to execute this command"))(f)
+  def inPlotWorldOrErr(p: Player, err: String = err"You must be in a plot world to execute this command"): Option[PlotWorld] = {
+    val world = inPlotWorld(p.getWorld)
+    if (world.isEmpty) p.sendMessage(err)
+    world
+  }
 
-  def inPlot(loc: Location)(f: (PlotWorld, Plot) => Unit): Unit =
-    inPlotWorld(loc.getWorld)(w => w.getPlot(w.getPlotId(loc)).foreach(f(w, _)))
+  def inPlot(loc: Location): Option[(PlotWorld, Plot)] =
+    for {
+      world <- inPlotWorld(loc.getWorld)
+      plot <- world.getPlot(world.getPlotId(loc))
+    } yield (world, plot)
 
-  def inPlot(p: Player, loc: Location)(f: (PlotWorld, Plot) => Unit): Unit =
-    inPlotWorld(p)(w => w.getPlot(w.getPlotId(loc)).fold(p.sendMessage(err"No plot found"))(plot => (w, plot)))
+  def inPlotOrErr(p: Player, loc: Location, err: String = err"No plot found"): Option[(PlotWorld, Plot)] = {
+    val plot = inPlot(loc)
+    if (plot.isEmpty) p.sendMessage(err)
+    plot
+  }
 
-  def inPlot(p: Player)(f: (PlotWorld, Plot) => Unit): Unit = inPlot(p, p.getLocation)(f)
+  def inPlotOrErr(p: Player): Option[(PlotWorld, Plot)] = inPlotOrErr(p, p.getLocation)
 
-  def withPlotStatus(p: Player, st: Status, err: Player => Unit)(f: (PlotWorld, Plot) => Unit): Unit =
-    inPlotWorld(p) { w =>
-      w.getPlot(w.getPlotId(p.getLocation)).fold(err(p)) { plot =>
-        if (plot.status(server, p).has(st)) f(w, plot)
-        else err(p)
-      }
-    }
+  def withPlotStatusOrErr(p: Player, st: Status): Option[(PlotWorld, Plot)] =
+    for {
+      world <- inPlotWorldOrErr(p)
+      plot <- world.getPlot(world.getPlotId(p.getLocation))
+      if (plot.status(server, p) >= st)
+    } yield (world, plot)
 
   def getPlot(loc: Location): Option[Plot] =
    resolver(loc.getWorld).flatMap(w => w.getPlot(w.getPlotId(loc)))

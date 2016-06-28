@@ -7,17 +7,14 @@ import com.edawg878.common.Server.Server
 import org.bukkit.Difficulty._
 import org.bukkit._
 import org.bukkit.block.Block
-import org.bukkit.enchantments.Enchantment
 import org.bukkit.entity.EntityType._
 import org.bukkit.entity._
 import org.bukkit.event.EventPriority._
 import org.bukkit.event._
 import org.bukkit.event.block.Action._
 import org.bukkit.event.block._
-import org.bukkit.event.enchantment.EnchantItemEvent
 import org.bukkit.event.entity.{EntityChangeBlockEvent, EntityDamageByEntityEvent, EntityExplodeEvent}
 import org.bukkit.event.hanging.{HangingBreakByEntityEvent, HangingPlaceEvent}
-import org.bukkit.event.inventory.PrepareAnvilEvent
 import org.bukkit.event.player._
 import org.bukkit.event.vehicle.VehicleDestroyEvent
 import org.bukkit.event.world.{StructureGrowEvent, WorldLoadEvent}
@@ -36,6 +33,7 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
   type Result = Either[String, Unit]
 
   def test(p: Player, loc: Location): Result = test(p, loc, defaultStatus, defaultError)
+
   def resetExpiration(p: Player, loc: Location): Result = resetExpiration(p, loc, defaultStatus, defaultError)
 
   def test(p: Player, loc: Location, st: Status, s: String): Result = {
@@ -62,6 +60,7 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
   def cancelLeft(ev: Cancellable, r: => Result): Unit = {
     if (!ev.isCancelled && r.isLeft) ev.setCancelled(true)
   }
+
   def cancel(ev: Cancellable, cond: => Boolean): Unit = {
     if (!ev.isCancelled && cond) ev.setCancelled(true)
   }
@@ -146,15 +145,15 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
     cancelLeft(ev, test(ev.getPlayer, ev.getBlockClicked.getLocation, Trusted, err"You must be trusted to the plot in order to fill buckets"))
 
   def touchedFire(p: Player): Boolean = {
-//    val set: Set[Material] = null
-//    Try(Option(p.getTargetBlock(set, 5)).exists(_.getType == Material.FIRE)).getOrElse(false)
+    //    val set: Set[Material] = null
+    //    Try(Option(p.getTargetBlock(set, 5)).exists(_.getType == Material.FIRE)).getOrElse(false)
     false
   }
 
 
   @EventHandler(priority = HIGH, ignoreCancelled = true)
   def onPlayerInteract(ev: PlayerInteractEvent): Unit = {
-    inPlotWorld(ev.getPlayer) { w =>
+    inPlotWorldOrErr(ev.getPlayer) foreach { w =>
       if (ev.hasBlock) {
         val clicked = ev.getClickedBlock
         if (ev.getAction == LEFT_CLICK_BLOCK && touchedFire(ev.getPlayer)) {
@@ -272,23 +271,23 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
   @EventHandler(priority = LOWEST, ignoreCancelled = true)
   def onPlayerMove(ev: PlayerMoveEvent): Unit = {
     if (ev.getFrom.getBlockX != ev.getTo.getBlockX || ev.getFrom.getBlockZ != ev.getTo.getBlockZ) {
-      inPlot(ev.getTo) { (w, plot) =>
+      inPlot(ev.getTo) foreach { case (w, plot) =>
         val p = ev.getPlayer
         plot.entryStatus(p) match {
           case Denied =>
-              if (!p.hasPermission("plot.bypass.ban")) {
-                p.teleport(p.getWorld.getSpawnLocation)
-                p.sendMessage(err"You are banned from this plot")
-              }
-            case Closed =>
-              if (!p.hasPermission("plot.bypass.close")) {
-                p.teleport(p.getWorld.getSpawnLocation)
-                p.sendMessage(err"This plot is closed to visitors")
-              }
-            case _ =>
-          }
+            if (!p.hasPermission("plot.bypass.ban")) {
+              p.teleport(p.getWorld.getSpawnLocation)
+              p.sendMessage(err"You are banned from this plot")
+            }
+          case Closed =>
+            if (!p.hasPermission("plot.bypass.close")) {
+              p.teleport(p.getWorld.getSpawnLocation)
+              p.sendMessage(err"This plot is closed to visitors")
+            }
+          case _ =>
         }
       }
+    }
   }
 
   def isPastBorder(loc: Location): Boolean = {
@@ -307,18 +306,18 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
         maybePlayer.foreach(_.sendMessage(err"You cannot teleport past the world border"))
         ev.setCancelled(true)
       } else {
-          maybePlayer foreach { p =>
-            val id = w.getPlotId(ev.getTo)
-            w.getPlot(id) foreach { plot =>
-              if (!p.hasPermission("plot.bypass.ban") && plot.isBanned(p.getUniqueId)) {
-                p.sendMessage(err"You cannot teleport to a plot that you are banned from")
-                ev.setCancelled(true)
-              } else if (!p.hasPermission("plot.bypass.close") && plot.closed && plot.status(p) < HelperOffline) {
-                p.sendMessage(err"You cannot teleport to a plot that is closed to visitors")
-                ev.setCancelled(true)
-              }
+        maybePlayer foreach { p =>
+          val id = w.getPlotId(ev.getTo)
+          w.getPlot(id) foreach { plot =>
+            if (!p.hasPermission("plot.bypass.ban") && plot.isBanned(p.getUniqueId)) {
+              p.sendMessage(err"You cannot teleport to a plot that you are banned from")
+              ev.setCancelled(true)
+            } else if (!p.hasPermission("plot.bypass.close") && plot.closed && plot.status(p) < HelperOffline) {
+              p.sendMessage(err"You cannot teleport to a plot that is closed to visitors")
+              ev.setCancelled(true)
             }
           }
+        }
       }
     }
   }
@@ -339,10 +338,9 @@ class PlotListener(val resolver: PlotWorldResolver, plotDb: PlotRepository, val 
     val player = ev.getPlayer
     val args = ev.getMessage.split(" ")
     val label = args(0).toLowerCase
-    if (!player.hasPermission("plot.admin") && label.startsWith("/sethome")) {
-      if (getPlot(player.getLocation)
-          .map(plot => !plot.isAdded(player.getUniqueId))
-          .getOrElse(true)) {
+    val loc = player.getLocation
+    inPlotWorld(loc.getWorld).foreach { w =>
+      if (label.startsWith("/sethome") && getPlot(loc).exists(_.status(player) < HelperOffline)) {
         player.sendMessage(err"You must be added to this plot to set home here")
         ev.setCancelled(true)
       }

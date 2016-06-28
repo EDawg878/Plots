@@ -274,7 +274,7 @@ class MongoPlayerRepository(val mongo: DB, val logger: Logger, name: String) ext
   def queryByName(name: String): BSONDocument = BSONDocument("lowerName" -> name.toLowerCase)
 
   override def ensureIndexes(): Unit = {
-    ensureIndex(col, "Lowercase Username", Index(key = List(("lowerName", IndexType.Ascending))))
+    ensureIndex(col, "Lowercase Username", Index(key = Seq("lowerName" -> IndexType.Ascending)))
   }
 
   override def insert(data: PlayerData): Unit = col.insert(data)

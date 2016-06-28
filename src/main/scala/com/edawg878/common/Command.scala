@@ -33,6 +33,8 @@ trait ErrorConverter[S] {
     case Failure(t) => parser.reportError(t.getMessage, sender)
   }
 
+  def sendErr[A](sender: S, t: Throwable): Unit = parser.reportError(t.getMessage, sender)
+
   def parser: CustomOptionParser[_, S]
 }
 
@@ -84,9 +86,11 @@ object BukkitCommandHandler {
 
   abstract class BukkitCommand[C] extends BaseCommand[C, CommandSender] {
 
-    def asPlayer(sender: CommandSender)(f: Player => Unit): Unit = sender match {
-      case p: Player => f(p)
-      case _ => console.printError(sender, "You must be online to execute this command.")
+    def asPlayerOrErr(sender: CommandSender): Option[Player] = sender match {
+      case p: Player => Some(p)
+      case _ =>
+        console.printError(sender, "You must be online to execute this command.")
+        None
     }
 
   }
