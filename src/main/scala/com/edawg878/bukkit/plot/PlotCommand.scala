@@ -561,7 +561,7 @@ object PlotCommand {
     }
 
     def road(p: Player): Unit =
-      withPlotStatusOrErr(p, Admin).fold(p.sendMessage(err"You do not have permission to toggle road access")) {
+      withPlotStatusOrErr(p, Owner).fold(p.sendMessage(err"You do not have permission to toggle road access")) {
         case (w, plot) =>
           val toggled = plot.copy(roadAccess = !plot.roadAccess)
           val action = if (toggled.roadAccess) "enabled" else "disabled"
