@@ -288,7 +288,7 @@ class MongoPlayerRepository(val mongo: DB, val logger: Logger, name: String) ext
     col.find(queryById(id)).cursor[PlayerData].headOption
 
   override def searchAll(name: String): Future[Seq[PlayerData]] =
-    col.find(queryByName(name)).cursor[PlayerData].collect[Vector]()
+    col.find(queryByName(name)).sort(BSONDocument("lastSeen" -> -1)).cursor[PlayerData].collect[Vector]()
 
   override def delete(id: UUID): Unit = col.remove(queryById(id))
 
