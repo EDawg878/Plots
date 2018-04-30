@@ -239,8 +239,9 @@ object Plot {
     def <=(that: Status): Boolean = this.rank <= that.rank
   }
 
-  case object Admin extends Status { val rank = 100 }
+  case object ServerAdmin extends Status { val rank = 100 }
   case object Owner extends Status { val rank = 20 }
+  case object PlotAdmin extends Status { val rank = 10 }
   case object Trusted extends Status { val rank = 5 }
   case object HelperOnline extends Status { val rank = 3 }
   case object HelperOffline extends Status { val rank = 2 }
@@ -273,6 +274,7 @@ case class Plot(id: PlotId,
                 roadAccess: Boolean = false,
                 lastCleared: Option[Instant] = None,
                 helpers: Set[UUID] = Set(),
+                admins: Set[UUID] = Set(),
                 trusted: Set[UUID] = Set(),
                 banned: Set[UUID] = Set())
   extends Ordered[Plot] {
@@ -284,7 +286,7 @@ case class Plot(id: PlotId,
     if (updated == expirationDate) None
     else Some(copy(expirationDate = updated))
   }
-  
+
   def open: Boolean = !closed
 
   def isExpired: Boolean = !protect && LocalDate.now.isAfter(expirationDate)
@@ -293,15 +295,16 @@ case class Plot(id: PlotId,
 
   def clearBanned: Plot = copy(banned = Set())
 
-  def ids: Set[UUID] = helpers ++ trusted ++ banned + owner
+  def ids: Set[UUID] = admins ++ helpers ++ trusted ++ banned + owner
 
   def canClear(amt: TemporalAmount): Boolean =
     lastCleared.fold(true)(t => Instant.now.isAfter(t.plus(amt)))
 
   def status(p: Player): Status = {
     val pid = p.getUniqueId
-    if (p.hasPermission("plot.admin")) Admin
+    if (p.hasPermission("plot.admin")) ServerAdmin
     else if (isOwner(pid)) Owner
+    else if (isAdmin(pid)) PlotAdmin
     else if (isTrusted(pid)) Trusted
     else if (isHelper(pid)) HelperOffline
     else if (isBanned(pid)) Banned
@@ -321,9 +324,10 @@ case class Plot(id: PlotId,
   }
 
   def isOwner(pid: UUID): Boolean = owner == pid
+  def isAdmin(pid: UUID): Boolean = admins.contains(pid)
   def isHelper(pid: UUID): Boolean = helpers.contains(pid)
   def isTrusted(pid: UUID): Boolean = trusted.contains(pid)
-  def isAdded(pid: UUID): Boolean = isHelper(pid) || isTrusted(pid)
+  def isAdded(pid: UUID): Boolean = isHelper(pid) || isTrusted(pid) || isAdmin(pid)
   def isBanned(pid: UUID): Boolean = banned.contains(pid)
 
   override def compare(that: Plot): Int = this.timeClaimed compareTo that.timeClaimed
@@ -386,13 +390,13 @@ case class PlotWorld(config: PlotWorldConfig, plots: TrieMap[PlotId, Plot]) {
     val pitch = 0f
     new Location(bw, x, y, z, yaw, pitch)
   }
-  
+
   def getHomes(pid: UUID): Seq[Plot] = plots.values.filter(_.isOwner(pid)).toSeq.sorted
 
   def getHome(pid: UUID, n: Int): Option[Plot] = Try(getHomes(pid)(n - 1)).toOption
-  
+
   def getHome(pid: UUID, s: String): Option[Plot] = getHomes(pid).find(_.alias.contains(s))
-  
+
   def isInside(l: Location, id: PlotId): Boolean =
     l.getWorld.getName == config.name && config.outer(id).isInside(l)
 
@@ -411,7 +415,7 @@ case class PlotWorld(config: PlotWorldConfig, plots: TrieMap[PlotId, Plot]) {
 }
 
 trait PlotHelper {
-  
+
   def resolver: PlotWorldResolver
   def server: Server
 
@@ -467,22 +471,24 @@ trait PlotHelper {
             val pid = p.getUniqueId
             st match {
               case HelperOnline =>
-                if (plot.isOwner(pid) || plot.isTrusted(pid)) Right()
+                if (plot.isOwner(pid) || plot.isTrusted(pid) || plot.isAdmin(pid)) Right()
                 else if (plot.isHelper(pid))
                   if (server.isOnline(plot.owner)) Right()
                   else Left(err"You cannot modify the plot while its owner is offline unless you are trusted")
                 else Left(s)
               case HelperOffline =>
-                eval(plot.isOwner(pid) || plot.isHelper(pid) || plot.isTrusted(pid))
+                eval(plot.isOwner(pid) || plot.isHelper(pid) || plot.isTrusted(pid) || plot.isAdmin(pid))
               case Owner =>
                 eval(plot.isOwner(pid))
+              case PlotAdmin =>
+                eval(plot.isOwner(pid) || plot.isAdmin(pid))
               case Trusted =>
-                eval(plot.isOwner(pid) || plot.isTrusted(pid))
+                eval(plot.isOwner(pid) || plot.isAdmin(pid) || plot.isTrusted(pid))
               case Banned =>
                 eval(plot.isBanned(pid))
               case NotBanned =>
                 eval(!plot.isBanned(pid))
-              case Admin =>
+              case ServerAdmin =>
                 Left(s)
             }
           }

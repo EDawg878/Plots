@@ -39,6 +39,8 @@ object PlotCommand {
 
   case object Trust extends SubCommand
 
+  case object Admin extends SubCommand
+
   case object Remove extends SubCommand
 
   case object Ban extends SubCommand
@@ -128,6 +130,11 @@ object PlotCommand {
       } text "trust a player to the plot" children (
         arg[Player]("<player>") required() action { (x, c) => c.copy(player = x) }
         )
+      cmd("admin", Set("+++")) action { (_, c) =>
+        c.copy(sub = Some(Admin))
+      } text "add a plot admin" children (
+        arg[Player]("<player>") required() action { (x, c) => c.copy(player = x) }
+        )
       cmd("remove", Set("-")) action { (_, c) =>
         c.copy(sub = Some(Remove))
       } text "remove a player from the plot" children (
@@ -204,6 +211,8 @@ object PlotCommand {
           asPlayerOrErr(sender).foreach(add(_, c))
         case Trust =>
           asPlayerOrErr(sender).foreach(trust(_, c))
+        case Admin =>
+          asPlayerOrErr(sender).foreach(admin(_, c))
         case Ban =>
           asPlayerOrErr(sender).foreach(ban(_, c))
         case Kick =>
@@ -265,10 +274,11 @@ object PlotCommand {
         names(plot.ids).foreach { nm =>
           p.sendMessage(info"Plot ID: $id")
           p.sendMessage(info"Owner: ${nm.getOrElse(plot.owner, plot.owner.toString)}")
-          p.sendMessage(info"Expiration: ${if (plot.protect) GREEN + "protected" else RED + plot.ExpirationFormatter.format(plot.expirationDate)}")
-          p.sendMessage(info"Status: ${if (plot.closed) RED + "closed" else GREEN + "open"}")
-          p.sendMessage(info"Road Access ${if (plot.roadAccess) GREEN + "enabled" else RED + "disabled"}")
-          p.sendMessage(info"Protected: ${if (plot.protect) GREEN + "yes" else RED + "no"}")
+          p.sendMessage(info"Expiration: ${if (plot.protect) GREEN + "Protected" else RED + plot.ExpirationFormatter.format(plot.expirationDate)}")
+          p.sendMessage(info"Status: ${if (plot.closed) RED + "Closed" else GREEN + "Open"}")
+          p.sendMessage(info"Road Access ${if (plot.roadAccess) GREEN + "Enabled" else RED + "Disabled"}")
+          p.sendMessage(info"Protected: ${if (plot.protect) GREEN + "Yes" else RED + "No"}")
+          p.sendMessage(info"Admins: ${fmtGroup(plot.admins, nm)}")
           p.sendMessage(info"Helpers: ${fmtGroup(plot.helpers, nm)}")
           p.sendMessage(info"Trusted: ${fmtGroup(plot.trusted, nm)}")
           p.sendMessage(info"Banned: ${fmtGroup(plot.banned, nm)}")
@@ -300,7 +310,7 @@ object PlotCommand {
     }
 
     def dispose(p: Player): Unit =
-      withPlotStatusOrErr(p, Admin).fold(p.sendMessage(err"You do not have permission to dispose of the plot")) {
+      withPlotStatusOrErr(p, ServerAdmin).fold(p.sendMessage(err"You do not have permission to dispose of the plot")) {
         case (w, plot) =>
           w.unclaim(plot.id)
           plotDb.delete(plot.id)
@@ -346,15 +356,30 @@ object PlotCommand {
           } else if (plot.isTrusted(c.pid)) {
             p.sendMessage(err"${c.player.getName} is already added to the plot")
           } else {
-            val trusted = plot.copy(trusted = plot.trusted + c.pid, helpers = plot.helpers - c.pid)
+            val trusted = plot.copy(trusted = plot.trusted + c.pid, admins = plot.admins - c.pid, helpers = plot.helpers - c.pid)
             w.update(trusted)
             plotDb.save(trusted)
             p.sendMessage(info"Trusted ${c.player.getName} to the plot")
           }
       }
 
+    def admin(p: Player, c: Config): Unit =
+      withPlotStatusOrErr(p, PlotAdmin).fold(p.sendMessage(err"You do not have permission to add plot admins")) {
+        case (w, plot) =>
+          if (plot.isOwner(c.pid)) {
+            p.sendMessage(err"You cannot add yourself as a plot admin")
+          } else if (plot.isAdmin(c.pid)) {
+            p.sendMessage(err"${c.player.getName} is already a plot admin")
+          } else {
+            val admins = plot.copy(admins = plot.admins + c.pid, trusted = plot.trusted - c.pid, helpers = plot.helpers - c.pid)
+            w.update(admins)
+            plotDb.save(admins)
+            p.sendMessage(info"Added ${c.player.getName} as a plot admin")
+          }
+      }
+
     def ban(p: Player, c: Config): Unit =
-      withPlotStatusOrErr(p, Owner).fold(p.sendMessage(err"You do not have permission to ban players from the plot")) {
+      withPlotStatusOrErr(p, PlotAdmin).fold(p.sendMessage(err"You do not have permission to ban players from the plot")) {
         case (w, plot) =>
           if (c.player.hasPermission("plot.bypass.ban")) {
             p.sendMessage(err"${c.player.getName} cannot be banned from the plot")
@@ -377,7 +402,7 @@ object PlotCommand {
       }
 
     def kick(p: Player, c: Config): Unit =
-      withPlotStatusOrErr(p, Trusted).fold(p.sendMessage(err"You do not have permission to kick players from the plot")) {
+      withPlotStatusOrErr(p, PlotAdmin).fold(p.sendMessage(err"You do not have permission to kick players from the plot")) {
         case (w, plot) =>
           if (c.player.hasPermission("plot.bypass.kick")) {
             p.sendMessage(err"${c.player.getName} cannot be kicked from the plot")
@@ -400,17 +425,17 @@ object PlotCommand {
       }
 
     def remove(p: Player, c: Config): Unit =
-      withPlotStatusOrErr(p, Owner).fold(p.sendMessage(err"You do not have permission to remove players from the plot")) {
+      withPlotStatusOrErr(p, PlotAdmin).fold(p.sendMessage(err"You do not have permission to remove players from the plot")) {
         case (w, plot) =>
-          if (c.target == "all") {
-            val removed = plot.copy(helpers = Set(), trusted = Set())
+          if (c.target == "all" || c.target == "*") {
+            val removed = plot.copy(helpers = Set(), trusted = Set(), admins = Set())
             w.update(removed)
             plotDb.save(removed)
             p.sendMessage(info"Removed all players from plot")
           } else {
             parseUniqueId(p, c.target) { pid =>
               if (plot.isAdded(pid)) {
-                val removed = plot.copy(helpers = plot.helpers - pid, trusted = plot.trusted - pid)
+                val removed = plot.copy(helpers = plot.helpers - pid, trusted = plot.trusted - pid, admins = plot.admins - pid)
                 w.update(removed)
                 plotDb.save(removed)
                 p.sendMessage(info"Removed ${c.target} from the plot")
@@ -422,7 +447,7 @@ object PlotCommand {
       }
 
     def unban(p: Player, c: Config): Unit =
-      withPlotStatusOrErr(p, Owner).fold(p.sendMessage(err"You do not have permission to unban players from the plot")) {
+      withPlotStatusOrErr(p, PlotAdmin).fold(p.sendMessage(err"You do not have permission to unban players from the plot")) {
         case (w, plot) =>
           if (c.target == "all") {
             val removed = plot.copy(banned = Set())
@@ -444,7 +469,7 @@ object PlotCommand {
       }
 
     def open(p: Player): Unit =
-      withPlotStatusOrErr(p, Owner).fold(p.sendMessage(err"You do not have permission to open the plot")) {
+      withPlotStatusOrErr(p, PlotAdmin).fold(p.sendMessage(err"You do not have permission to open the plot")) {
         case (w, plot) =>
           if (plot.open) {
             p.sendMessage(err"The plot is already open to visitors")
@@ -457,7 +482,7 @@ object PlotCommand {
       }
 
     def close(p: Player): Unit =
-      withPlotStatusOrErr(p, Owner).fold(p.sendMessage(err"You do not have permission to close the plot")) {
+      withPlotStatusOrErr(p, PlotAdmin).fold(p.sendMessage(err"You do not have permission to close the plot")) {
         case (w, plot) =>
           if (plot.closed) {
             p.sendMessage(err"The plot is already closed to visitors")
@@ -472,7 +497,7 @@ object PlotCommand {
       }
 
     def protect(p: Player): Unit =
-      withPlotStatusOrErr(p, Admin).fold(p.sendMessage(err"You do not have permission to protect the plot")) {
+      withPlotStatusOrErr(p, ServerAdmin).fold(p.sendMessage(err"You do not have permission to protect the plot")) {
         case (w, plot) =>
           val toggled = plot.copy(protect = !plot.protect)
           w.update(toggled)
@@ -519,9 +544,10 @@ object PlotCommand {
     def clear(p: Player): Unit =
       withPlotStatusOrErr(p, Owner).fold(p.sendMessage(err"You do not have permission to clear the plot")) {
         case (w, plot) =>
+          val cooldownHrs = 48
           if (plot.protect) {
             p.sendMessage(err"You cannot clear a protected plot")
-          } else if (p.hasPermission("plot.admin") || plot.canClear(Duration.ofHours(48))) {
+          } else if (p.hasPermission("plot.admin") || plot.canClear(Duration.ofHours(cooldownHrs))) {
             //plotClearConversation.begin(p, plot.id)
             val id = plot.id
             w.clear(p.getWorld, id)
@@ -530,12 +556,12 @@ object PlotCommand {
             plotDb.save(updated)
             p.sendMessage(info"Plot cleared")
           } else {
-            p.sendMessage(err"You can only clear your plot once per hour")
+            p.sendMessage(err"You can only clear your plot once per $cooldownHrs hours")
           }
       }
 
     def reset(p: Player): Unit =
-      withPlotStatusOrErr(p, Admin).fold(p.sendMessage(err"You do not have permission to reset the plot")) {
+      withPlotStatusOrErr(p, ServerAdmin).fold(p.sendMessage(err"You do not have permission to reset the plot")) {
         case (w, plot) =>
           if (plot.protect) {
             p.sendMessage(err"You cannot reset a protected plot")
@@ -561,7 +587,7 @@ object PlotCommand {
     }
 
     def road(p: Player): Unit =
-      withPlotStatusOrErr(p, Owner).fold(p.sendMessage(err"You do not have permission to toggle road access")) {
+      withPlotStatusOrErr(p, PlotAdmin).fold(p.sendMessage(err"You do not have permission to toggle road access")) {
         case (w, plot) =>
           val toggled = plot.copy(roadAccess = !plot.roadAccess)
           val action = if (toggled.roadAccess) "enabled" else "disabled"

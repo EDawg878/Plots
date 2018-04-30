@@ -207,6 +207,7 @@ trait BSONHandlers {
       ) ++ BSONDocument(
         "helpers" -> self.helpers,
         "trusted" -> self.trusted,
+        "admins" -> self.admins,
         "banned" -> self.banned
       )
     }
@@ -223,6 +224,7 @@ trait BSONHandlers {
       val roadAccess = doc.getAs[Boolean]("roadAccess").get
       val helpers = doc.getAs[Set[UUID]]("helpers").getOrElse(Set())
       val trusted = doc.getAs[Set[UUID]]("trusted").getOrElse(Set())
+      val admins = doc.getAs[Set[UUID]]("admins").getOrElse(Set())
       val banned = doc.getAs[Set[UUID]]("banned").getOrElse(Set())
       Plot(
         id = id,
@@ -236,6 +238,7 @@ trait BSONHandlers {
         roadAccess = roadAccess,
         helpers = helpers,
         trusted = trusted,
+        admins = admins,
         banned = banned
       )
     }
