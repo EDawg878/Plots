@@ -334,7 +334,7 @@ object PlotCommand {
     }
 
     def add(p: Player, c: Config): Unit =
-      withPlotStatusOrErr(p, Owner).fold(p.sendMessage(err"You do not have permission to add players to the plot")) {
+      withPlotStatusOrErr(p, PlotAdmin).fold(p.sendMessage(err"You do not have permission to add players to the plot")) {
         case (w, plot) =>
           if (plot.isOwner(c.pid)) {
             p.sendMessage(err"You cannot add yourself to the plot")
@@ -349,7 +349,7 @@ object PlotCommand {
       }
 
     def trust(p: Player, c: Config): Unit =
-      withPlotStatusOrErr(p, Owner).fold(p.sendMessage(err"You do not have permission to trust players to the plot")) {
+      withPlotStatusOrErr(p, PlotAdmin).fold(p.sendMessage(err"You do not have permission to trust players to the plot")) {
         case (w, plot) =>
           if (plot.isOwner(c.pid)) {
             p.sendMessage(err"You cannot trust yourself to the plot")
@@ -449,7 +449,7 @@ object PlotCommand {
     def unban(p: Player, c: Config): Unit =
       withPlotStatusOrErr(p, PlotAdmin).fold(p.sendMessage(err"You do not have permission to unban players from the plot")) {
         case (w, plot) =>
-          if (c.target == "all") {
+          if (c.target == "all" || c.target == "*") {
             val removed = plot.copy(banned = Set())
             w.update(removed)
             plotDb.save(removed)
